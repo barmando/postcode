@@ -20,7 +20,7 @@
     .controls .buttons { display: flex; flex-direction: column; gap: 8px; }
     button { padding: 10px 12px; border: 1px solid #d1d5db; background: #111827; color: white; border-radius: 10px; cursor: pointer; }
     button.secondary { background: white; color: #111827; }
-    #map { height: calc(100vh - 260px); }
+    #map { height: 72vh; }
     .legend { position: absolute; bottom: 16px; left: 16px; background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 10px; font-size: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
     .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
     .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid #9ca3af; }
@@ -59,6 +59,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const map = L.map('map');
+    map.setView([52.1, 5.3], 7); // start in NL zodat je altijd de tegelkaart ziet
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap'
@@ -177,7 +178,7 @@
 
     document.getElementById('load').addEventListener('click', async () => {
       try { await loadFromTextarea(); }
-      catch (e) { alert(e.message); }
+      catch (e) { alert(e.message + '\n\nTip: vink "Gebruik proxy" aan/uit en probeer opnieuw. Je kunt de URL ook direct in een nieuw tabblad openen om te testen.'); }
     });
     document.getElementById('share').addEventListener('click', () => {
       const url = serializeToHash();
