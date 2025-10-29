@@ -1,198 +1,132 @@
-<!doctype html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PC4 Layer Viewer (Leaflet) – plak je WFS/GeoJSON URLs</title>
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <style>
-    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-    .app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
-    header { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-    header h1 { font-size: 16px; margin: 0; }
-    .controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; }
-    .controls textarea { width: 100%; height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 10px; }
-    .controls .buttons { display: flex; flex-direction: column; gap: 8px; }
-    button { padding: 10px 12px; border: 1px solid #d1d5db; background: #111827; color: white; border-radius: 10px; cursor: pointer; }
-    button.secondary { background: white; color: #111827; }
-    #map { height: 72vh; }
-    .legend { position: absolute; bottom: 16px; left: 16px; background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 10px; font-size: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
-    .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-    .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid #9ca3af; }
-    .hint { color: #6b7280; font-size: 12px; margin: 6px 0 0; }
-    .footer { padding: 8px 16px; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <header>
-      <h1>PC4 Layer Viewer – plak PDOK/uMap GeoJSON URLs</h1>
-      <div class="hint">Formaat per regel: <code>kleurHEX|label|url</code> (pijpbalkjes)</div>
-    </header>
+// Interactieve Postcode Zones Kaart
+// ------------------------------------------------------------
+// Hoe te gebruiken
+// 1) Plaats dit bestand in je React/Vite/Next project als bijvoorbeeld PostcodeZonesMap.tsx
+// 2) Installeer dependencies:
+//    npm i react-leaflet leaflet
+// 3) Voeg Leaflet CSS toe (bv. in src/main.tsx of _app.tsx):
+//    import 'leaflet/dist/leaflet.css'
+// 4) Gebruik de component: <PostcodeZonesMap />
+// ------------------------------------------------------------
 
-    <section class="controls">
-      <textarea id="input" spellcheck="false"></textarea>
-      <div class="buttons">
-        <button id="load">Laad lagen</button>
-        <button id="share" class="secondary">Deelbare link</button>
-        <button id="clear" class="secondary">Reset</button>
-      </div>
-      <div class="hint" style="grid-column: 1 / -1;">
-        Voorbeeldregels met jouw 5 gemeenten staan alvast ingevuld. Je kunt nieuwe regels toevoegen of bestaande aanpassen.
-      </div>
-    </section>
+import { useMemo } from 'react'
+import { MapContainer, TileLayer, Circle, Popup, useMap } from 'react-leaflet'
+import type { LatLngExpression } from 'leaflet'
 
-    <div style="padding: 0 16px 8px; display:flex; gap:8px; align-items:center">
-      <label><input type="checkbox" id="useProxy"> Gebruik proxy (alleen als CORS faalt)</label>
-      <input id="proxyBase" placeholder="https://cors.isomorphic-git.org/" style="flex:1; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px"/>
+// Een klein helper-component om automatisch te zoomen zodat alle zones in beeld zijn
+function FitAllBounds({ points }: { points: LatLngExpression[] }) {
+  const map = useMap()
+  useMemo(() => {
+    if (!points.length) return
+    const bounds = (points as [number, number][]) .reduce(
+      (acc, [lat, lng]) => {
+        acc[0][0] = Math.min(acc[0][0], lat)
+        acc[0][1] = Math.min(acc[0][1], lng)
+        acc[1][0] = Math.max(acc[1][0], lat)
+        acc[1][1] = Math.max(acc[1][1], lng)
+        return acc
+      },
+      [[90, 180], [-90, -180]] as [[number, number], [number, number]]
+    )
+    map.fitBounds(bounds as unknown as [[number, number],[number, number]], { padding: [40, 40] })
+  }, [map, points])
+  return null
+}
+
+// NB: "Loop op Zand" lijkt een typefout; hier gebruiken we "Loon op Zand". Pas gerust aan.
+const ZONES = [
+  {
+    name: 'Altena',
+    postcodes: ['4250–4255', '4260–4269', '4270–4273', '4280–4288'],
+    center: [51.78, 4.94] as LatLngExpression, // regio Werkendam/Woudrichem
+    radius: 14000, // meter (indicatieve zone)
+    color: '#2563eb',
+  },
+  {
+    name: 'Waalwijk',
+    postcodes: ['5141–5149'],
+    center: [51.69, 5.07] as LatLngExpression,
+    radius: 7000,
+    color: '#16a34a',
+  },
+  {
+    name: 'Heusden',
+    postcodes: ['5150–5154', '5250–5256'],
+    center: [51.70, 5.17] as LatLngExpression, // Vlijmen/Drunen/Heusden
+    radius: 9000,
+    color: '#e11d48',
+  },
+  {
+    name: 'Loon op Zand',
+    postcodes: ['5170–5176'],
+    center: [51.63, 5.07] as LatLngExpression,
+    radius: 6000,
+    color: '#9333ea',
+  },
+  {
+    name: 'Dongen',
+    postcodes: ['5100–5109'],
+    center: [51.63, 4.94] as LatLngExpression,
+    radius: 6000,
+    color: '#f59e0b',
+  },
+]
+
+export default function PostcodeZonesMap() {
+  const points = ZONES.map(z => z.center)
+
+  return (
+    <div className="w-full h-[80vh] bg-white">
+      <div className="absolute z-[1000] m-4 p-4 rounded-2xl shadow-lg bg-white/90 backdrop-blur border border-gray-200">
+        <h1 className="text-xl font-semibold mb-1">Postcodezones</h1>
+        <p className="text-sm text-gray-600 mb-2">Klik op een gekleurde zone voor details.</p>
+        <ul className="text-sm space-y-1">
+          {ZONES.map(z => (
+            <li key={z.name} className="flex items-start gap-2">
+              <span className="mt-1 inline-block h-3 w-3 rounded-full" style={{ backgroundColor: z.color }} />
+              <span>
+                <span className="font-medium">{z.name}:</span>{' '}
+                {z.postcodes.join(', ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <MapContainer
+        className="h-full w-full rounded-none"
+        center={[51.67, 5.02]}
+        zoom={10}
+        scrollWheelZoom
+      >
+        <TileLayer
+          attribution='&copy; OpenStreetMap contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
+        <FitAllBounds points={points} />
+
+        {ZONES.map((z) => (
+          <Circle
+            key={z.name}
+            center={z.center}
+            radius={z.radius}
+            pathOptions={{ color: z.color, fillColor: z.color, fillOpacity: 0.25 }}
+          >
+            <Popup>
+              <div className="space-y-1">
+                <div className="text-base font-semibold">{z.name}</div>
+                <div className="text-sm text-gray-700">Postcodes: {z.postcodes.join(', ')}</div>
+                <div className="text-xs text-gray-500">(Indicatieve zone voor visualisatie)</div>
+              </div>
+            </Popup>
+          </Circle>
+        ))}
+      </MapContainer>
+
+      <div className="absolute bottom-4 right-4 z-[1000] text-xs text-gray-600 bg-white/90 border border-gray-200 rounded-full px-3 py-1 shadow">
+        © OpenStreetMap contributors
+      </div>
     </div>
-
-    <div id="map"></div>
-    <div class="footer">Let op: dit werkt alleen als de bronserver CORS toestaat (PDOK meestal wel). Als je niets ziet: probeer de proxy-optie hieronder of open dit bestand lokaal in een eigen browservenster. Anders heb je een proxy nodig, of gebruik uMap met de Proxy-optie.</div>
-  </div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script>
-    const map = L.map('map');
-    map.setView([52.1, 5.3], 7); // start in NL zodat je altijd de tegelkaart ziet
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-
-    let layers = [];
-
-    function parseLines(text) {
-      return text.split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
-        // Expect: #hex|label|url
-        const [color, label, url] = l.split('|');
-        return { color: color?.trim(), label: label?.trim(), url: url?.trim() };
-      });
-    }
-
-    function clearLayers() {
-      layers.forEach(obj => map.removeLayer(obj.layer));
-      layers = [];
-      const legend = document.querySelector('.legend');
-      legend && legend.remove();
-    }
-
-    async function addLayer({color, label, url}) {
-      // Optional proxy
-      const useProxy = document.getElementById('useProxy').checked;
-      const proxyBase = document.getElementById('proxyBase').value || '';
-      const finalURL = useProxy && proxyBase ? proxyBase + encodeURIComponent(url) : url;
-
-      const res = await fetch(finalURL);
-      if (!res.ok) throw new Error('Kon niet laden: ' + finalURL + ' (' + res.status + ')');
-      const geo = await res.json();
-
-      const style = { color: color || '#111827', weight: 1, fillColor: color || '#111827', fillOpacity: 0.5 };
-
-      const gj = L.geoJSON(geo, {
-        style,
-        onEachFeature: (feature, layer) => {
-          const pc = feature?.properties?.pc4 ?? feature?.properties?.PC4 ?? '';
-          const name = label || 'Laag';
-          layer.bindPopup(`<b>${name}</b><br>PC4: ${pc}`);
-        }
-      }).addTo(map);
-
-      layers.push({layer: gj, color, label});
-    };
-
-      const gj = L.geoJSON(geo, {
-        style,
-        onEachFeature: (feature, layer) => {
-          const pc = feature?.properties?.pc4 ?? feature?.properties?.PC4 ?? '';
-          const name = label || 'Laag';
-          layer.bindPopup(`<b>${name}</b><br>PC4: ${pc}`);
-        }
-      }).addTo(map);
-
-      layers.push({layer: gj, color, label});
-    }
-
-    function fitAll() {
-      const group = L.featureGroup(layers.map(o => o.layer));
-      try { map.fitBounds(group.getBounds(), { padding: [20,20] }); }
-      catch(e) { map.setView([52.1, 5.3], 8); }
-    }
-
-    function renderLegend() {
-      const div = document.createElement('div');
-      div.className = 'legend';
-      div.innerHTML = layers.map(o => `
-        <div class="legend-item">
-          <span class="swatch" style="background:${o.color}"></span>
-          <span>${o.label || 'Laag'}</span>
-        </div>
-      `).join('');
-      document.body.appendChild(div);
-    }
-
-    async function loadFromTextarea() {
-      clearLayers();
-      const lines = parseLines(document.getElementById('input').value);
-      for (const line of lines) {
-        if (!line.url) continue;
-        await addLayer(line); // sequential to avoid rate spikes
-      }
-      if (layers.length) {
-        fitAll();
-        renderLegend();
-      }
-    }
-
-    function serializeToHash() {
-      const text = document.getElementById('input').value;
-      const encoded = encodeURIComponent(text);
-      location.hash = 'cfg=' + encoded;
-      return location.href;
-    }
-
-    function restoreFromHash() {
-      const m = location.hash.match(/cfg=([^&]+)/);
-      if (m) {
-        const decoded = decodeURIComponent(m[1]);
-        document.getElementById('input').value = decoded;
-      }
-    }
-
-    // Defaults: 5 gemeenten met jouw URLs en kleuren
-    const defaults = [
-      "#1f77b4|Altena|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('4250','4251','4252','4253','4254','4255','4260','4261','4262','4263','4264','4265','4266','4267','4268','4269','4270','4271','4272','4273','4280','4281','4282','4283','4284','4285','4286','4287','4288')",
-      "#2ca02c|Waalwijk|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5141','5142','5143','5144','5145','5146','5147','5148','5149')",
-      "#ff7f0e|Heusden|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5150','5151','5152','5153','5154','5250','5251','5252','5253','5254','5255','5256')",
-      "#9467bd|Loon op Zand|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5170','5171','5172','5173','5174','5175','5176')",
-      "#d62728|Dongen|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5100','5101','5102','5103','5104','5105','5106','5107','5108','5109')"
-    ].join("\n");
-
-    document.getElementById('input').value = defaults;
-    restoreFromHash();
-
-    document.getElementById('load').addEventListener('click', async () => {
-      try { await loadFromTextarea(); }
-      catch (e) { alert(e.message + '
-
-Tip: vink "Gebruik proxy" aan/uit en probeer opnieuw. Je kunt de URL ook direct in een nieuw tabblad openen om te testen.'); }
-    });
-    document.getElementById('share').addEventListener('click', () => {
-      const url = serializeToHash();
-      alert('Deel deze link om dezelfde configuratie te openen:\n\n' + url);
-    });
-    document.getElementById('clear').addEventListener('click', () => {
-      document.getElementById('input').value = '';
-      clearLayers();
-    });
-
-    // Eerste render met defaults
-    loadFromTextarea();
-  </script>
-</body>
-</html>
+  )
+}
