@@ -43,6 +43,8 @@
     </div>
     <div class="tip">Gebruik komma’s/spaties of ranges met een streepje. Klik in de lijst op een PC4 om in te zoomen.</div>
 
+    <div id="meta" class="tip" aria-live="polite"></div>
+
     <div class="list" id="pc4List" aria-live="polite"></div>
   </div>
 
@@ -63,6 +65,9 @@
 
     // GeoJSON-bestand (zelfde map als deze pagina)
     const GEOJSON_URL = 'cbs_postcode4_brabant.geojson';
+    const DATASET_VERSION = 'CBS Postcode4 2024';
+    const PDOK_WFS_YEAR  = '2024';
+    const FETCHED_ON = new Date().toISOString().slice(0,10);
 
     // Selecties & index
     const selected = new Map(); // pc4 -> color
@@ -82,6 +87,11 @@
       }
       return baseStyle();
     }
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const metaEl = document.getElementById('meta');
+      if(metaEl){ metaEl.textContent = `Datasetversie: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}`; }
+    });
 
     let geo = null;
     function refreshStyles(){ if(!geo) return; geo.eachLayer(l => l.setStyle(styleFor(l.feature))); }
@@ -168,7 +178,37 @@
                 listEl.appendChild(makeItem(code, c));
               }
               refreshStyles();
-              lyr.bindPopup(`PC4: <strong>${code}</strong>`).openPopup();
+              const url = `https://service.pdok.nl/cbs/postcode4/${PDOK_WFS_YEAR}/wfs/v1_0?service=WFS&request=GetFeature&version=2.0.0&typeNames=postcode4&outputFormat=application/json&CQL_FILTER=pc4=${code}`;
+              lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Demografie laden…</em>`);
+              fetch(url)
+                .then(r=>r.json())
+                .then(j=>{
+                  const props = j?.features?.[0]?.properties || {};
+                  const fields = [
+                    ['Inwoners', 'aantal_inwoners'],
+                    ['Huishoudens', 'aantal_huishoudens'],
+                    ['Bevolkingsdichtheid (/km²)', 'bevolkingsdichtheid'],
+                    ['Gem. huish. grootte', 'gemiddelde_huishoudensgrootte'],
+                    ['0–14 jaar', 'leeftijd_0_14'],
+                    ['15–24 jaar', 'leeftijd_15_24'],
+                    ['25–44 jaar', 'leeftijd_25_44'],
+                    ['45–64 jaar', 'leeftijd_45_64'],
+                    ['65+ jaar', 'leeftijd_65_plus'],
+                    ['Mannen', 'mannen'],
+                    ['Vrouwen', 'vrouwen']
+                  ];
+                  const rows = fields
+                    .map(([label,key]) => props[key] != null ? `<tr><td>${label}</td><td style="text-align:right">${props[key]}</td></tr>` : '')
+                    .filter(Boolean)
+                    .join('');
+                  const table = rows ? `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows}</table>` : '<em>Geen detailvelden beschikbaar</em>';
+                  const footer = `<div style=\"margin-top:6px;color:#6b7280;font-size:11px\">Bron: PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} · Opgehaald: ${FETCHED_ON}</div>`;
+                  lyr.setPopupContent(`PC4: <strong>${code}</strong><br>${table}${footer}`);
+                })
+                .catch(()=>{
+                  lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Live ophalen mislukt</em><div style=\"margin-top:6px;color:#6b7280;font-size:11px\">Dataset: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}</div>`);
+                });
+              lyr.openPopup();
             });
             lyr.bindPopup(code ? `PC4: <strong>${code}</strong>` : 'PC4');
           }
