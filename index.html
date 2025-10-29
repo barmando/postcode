@@ -1,420 +1,377 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Postcodekaart (PC4) – Selecteer gebieden en kleur</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <title>PC4 Postcodes – Leaflet (Single HTML)</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
+    :root {
+      --sidebar-width: 360px;
+      --bg: #0f172a;          /* slate-900 */
+      --panel: #111827;       /* gray-900 */
+      --muted: #9ca3af;       /* gray-400 */
+      --accent: #22c55e;      /* green-500 */
+      --border: #1f2937;      /* gray-800 */
+    }
     html, body { height: 100%; margin: 0; }
-    #app { display: grid; grid-template-columns: 320px 1fr; height: 100%; }
-    #sidebar { padding: 12px; border-right: 1px solid #eee; overflow: auto; }
-    #map { height: 100%; width: 100%; }
-    .block { margin-bottom: 16px; }
-    .layer-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-    .hint { font-size: 12px; color: #555; }
-    fieldset { border: 1px solid #eee; border-radius: 12px; padding: 10px 12px; }
-    legend { padding: 0 6px; font-weight: 600; }
-    .badge { display:inline-block; padding:2px 6px; border-radius:8px; background:#f5f5f5; font-size: 12px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: var(--bg); color: #e5e7eb; }
+    #app { display: grid; grid-template-columns: var(--sidebar-width) 1fr; height: 100%; }
+    #map { width: 100%; height: 100%; }
+    .sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 12px 14px; overflow: auto; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:600; margin-bottom: 8px; }
+    .brand .dot { width:10px; height:10px; border-radius: 9999px; background: var(--accent); box-shadow: 0 0 16px var(--accent); }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 8px 0 14px; }
+    .group { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 12px; background: #0b1220; }
+    .group h3 { margin: 0 0 8px; font-size: 14px; color:#f3f4f6; letter-spacing: .2px; }
+    .row { display:flex; align-items:center; gap: 10px; margin: 6px 0; }
+    .row label { font-size: 13px; }
+    .row input[type="text"] { flex: 1; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: #0a0f1c; color: #e5e7eb; }
+    .row input[type="range"] { width: 100%; }
+    .btn { appearance: none; border: 1px solid var(--border); background: #101827; color: #e5e7eb; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    .btn:hover { border-color: #374151; }
+    .kpi { display:flex; gap:8px; flex-wrap: wrap; }
+    .kpi .badge { background:#0a0f1c; border:1px solid var(--border); padding:4px 8px; border-radius: 999px; font-size: 12px; color: var(--muted); }
+    .error { color: #fecaca; background:#2a0b0b; border:1px solid #7f1d1d; padding:8px; border-radius:8px; font-size: 12px; display:none; }
+    .ok { color: #bbf7d0; }
+    .footer { color: var(--muted); font-size: 11px; margin-top: 6px; }
+    .color { width: 28px; height: 28px; padding:0; border-radius: 8px; border: 1px solid var(--border); background: transparent; }
+    .flex-1 { flex:1; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .small { font-size:12px; color: var(--muted); }
   </style>
 </head>
 <body>
-<div id="app">
-  <aside id="sidebar">
-    <h2 style="margin-top:0">Postcodekaart (PC4)</h2>
-    <p class="hint">Je kunt een <strong>pc4.geojson</strong> lokaal kiezen of via een <strong>URL</strong> laden. Het bestand moet per vlak een property met de PC4 bevatten, bv. <code>pc4</code>, <code>PC4</code>, <code>postcode4</code> of <code>postcode</code>.</p>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span> <span>PC4 Postcodes (Leaflet)</span></div>
+      <div class="hint">Autoload via URL, bijv.:<br>
+        <code>?source=arcgis&url=https://services.arcgis.com/.../FeatureServer/0</code><br>
+        <code>?source=wfs&url=https://example.com/geoserver/wfs&typenames=namespace:layer</code><br>
+        <code>?source=github&url=https://api.github.com/repos/OWNER/REPO/contents/path/to/file.geojson?ref=main</code>
+      </div>
 
-    <div class="block">
-      <fieldset>
-        <legend>Data laden</legend>
-        <div class="layer-row" style="align-items: stretch;">
-          <input id="geoUrl" placeholder="https://.../pc4.geojson" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-          <button id="loadUrlBtn">Laden via URL</button>
+      <div id="status" class="kpi">
+        <div class="badge" id="badge-source">bron: —</div>
+        <div class="badge" id="badge-features">features: 0</div>
+      </div>
+
+      <div id="err" class="error"></div>
+
+      <div class="group">
+        <h3>Weergave</h3>
+        <div class="row"><label class="flex-1"><input type="checkbox" id="toggle-borders" checked> Borders aan</label></div>
+        <div class="row">
+          <label class="small" style="width:90px">Opacity</label>
+          <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.5" class="flex-1"/>
+          <span id="opacity-val" class="small">0.50</span>
         </div>
-        <div class="layer-row">
-          <input type="file" id="geoFile" accept=".geojson,.json" />
-          <span class="hint">of kies lokaal</span>
+      </div>
+
+      <div class="group">
+        <h3>Zoom naar PC4</h3>
+        <div class="row">
+          <input type="text" id="pc4-input" placeholder="bijv. 5141" maxlength="4" />
+          <button class="btn" id="pc4-btn">Zoom</button>
         </div>
-        <p class="hint">Let op: bij laden via URL moet de server <em>CORS</em> toestaan.</p>
-      </fieldset>
-    </div>
+      </div>
 
-    <div class="block">
-      <fieldset>
-        <legend>Kaartlaag opties</legend>
-        <label class="layer-row">
-          <input type="checkbox" id="showBorders" checked>
-          <span>Toon randen</span>
-        </label>
-        <label class="layer-row">
-          Opacity
-          <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.5" />
-          <span id="opacityVal" class="badge">0.50</span>
-        </label>
-      </fieldset>
-    </div>
+      <div class="group">
+        <h3>Noord-Brabant selectie</h3>
+        <div id="muni-controls"></div>
+      </div>
 
-    <div class="block">
-      <fieldset>
-        <legend>Selecties per gemeente</legend>
-        <div id="municipalityControls"></div>
-      </fieldset>
-      <p class="hint">Gemeenten/gebieden (PC4-reeksen) gebaseerd op jouw lijst: Altena, Waalwijk, Heusden, Loon op Zand, Dongen.</p>
-    </div>
+      <div class="footer">Startpositie: 51.6938, 5.0844 (zoom 12). Popups tonen PC4 + gemeentenaam. Kleuren & zichtbaarheid zijn live aanpasbaar.</div>
+    </aside>
+    <div id="map"></div>
+  </div>
 
-    <div class="block">
-      <fieldset>
-        <legend>Zoek PC4</legend>
-        <div class="layer-row">
-          <input id="pc4Search" placeholder="Bijv. 5144" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-          <button id="zoomBtn">Zoom</button>
-        </div>
-        <p class="hint">Zoom naar een specifiek PC4-gebied (exacte 4 cijfers).</p>
-      </fieldset>
-    </div>
-
-    <div class="block hint">
-      <details>
-        <summary>Tips</summary>
-        <ul>
-          <li>Wil je een extra gemeente of reeks toevoegen? Pas de <code>MUNICIPALITIES</code>-config in de code aan.</li>
-          <li>Je kunt randen uitzetten of de transparantie aanpassen om overlappende vlakken beter te zien.</li>
-        </ul>
-      </details>
-    </div>
-  </aside>
-  <main id="map"></main>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script>
-// --- Configuratie ---
-const MUNICIPALITIES = {
-  "Altena": {
-    ranges: [[4250,4255],[4260,4269],[4270,4273],[4280,4288]],
-    color: "#e74c3c"
-  },
-  "Waalwijk": {
-    ranges: [[5141,5149]],
-    color: "#3498db"
-  },
-  "Heusden": {
-    ranges: [[5150,5154],[5250,5256]],
-    color: "#2ecc71"
-  },
-  "Loon op Zand": {
-    ranges: [[5170,5176]],
-    color: "#9b59b6"
-  },
-  "Dongen": {
-    ranges: [[5100,5109]],
-    color: "#f1c40f"
-  }
-};
-
-// Kaart op jouw coördinaten
-const map = L.map('map').setView([51.6938, 5.0844], 12);
-
-// Basislaag
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap-bijdragers'
-}).addTo(map);
-
-// Opslag voor alle PC4 features
-let allFeatures = [];
-let indexByPc4 = new Map(); // pc4 string -> Leaflet layer
-
-// Per gemeente een layergroup om later te kunnen togglen
-const municipalityLayers = {};
-Object.keys(MUNICIPALITIES).forEach(name => {
-  municipalityLayers[name] = L.geoJSON([], {
-    style: f => ({
-      color: document.getElementById('showBorders')?.checked ? '#222' : 'transparent',
-      weight: 1,
-      fillColor: MUNICIPALITIES[name].color,
-      fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.5')
-    }),
-    onEachFeature: (feature, layer) => {
-      const pc4 = getPc4(feature);
-      layer.bindPopup(`<strong>PC4:</strong> ${pc4 || '(onbekend)'}<br/><strong>Gemeente:</strong> ${name}`);
-    }
-  }).addTo(map);
-});
-
-// UI voor gemeenten genereren
-const controlsDiv = document.getElementById('municipalityControls');
-const checkboxByMunicipality = new Map();
-const colorInputByMunicipality = new Map();
-Object.entries(MUNICIPALITIES).forEach(([name, cfg], i) => {
-  const row = document.createElement('div');
-  row.className = 'layer-row';
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.id = `chk_${i}`;
-
-  const label = document.createElement('label');
-  label.htmlFor = checkbox.id;
-  label.textContent = name;
-
-  const color = document.createElement('input');
-  color.type = 'color';
-  color.value = cfg.color;
-  color.title = `Kleur voor ${name}`;
-
-  row.appendChild(checkbox);
-  row.appendChild(label);
-  row.appendChild(color);
-  controlsDiv.appendChild(row);
-
-  checkboxByMunicipality.set(name, checkbox);
-  colorInputByMunicipality.set(name, color);
-
-  checkbox.addEventListener('change', () => {
-    cfg.enabled = checkbox.checked;
-    cfg.color = color.value;
-    renderMunicipality(name);
-  });
-  color.addEventListener('input', () => {
-    cfg.color = color.value;
-    // werk stijl bij
-    municipalityLayers[name].setStyle({ fillColor: cfg.color });
-  });
-});
-
-// --- Eenvoudige JS "API" om dit van buitenaf aan te roepen ---
-window.pc4App = {
-  setEnabled(name, enabled = true) {
-    const cfg = MUNICIPALITIES[name];
-    if (!cfg) return false;
-    cfg.enabled = !!enabled;
-    const cb = checkboxByMunicipality.get(name);
-    if (cb) cb.checked = cfg.enabled;
-    renderMunicipality(name);
-    return true;
-  },
-  setColor(name, color) {
-    const cfg = MUNICIPALITIES[name];
-    if (!cfg || !/^#?[0-9a-fA-F]{6}$/.test(color)) return false;
-    const hex = color.startsWith('#') ? color : `#${color}`;
-    cfg.color = hex;
-    const ci = colorInputByMunicipality.get(name);
-    if (ci) ci.value = hex;
-    municipalityLayers[name].setStyle({ fillColor: hex });
-    return true;
-  },
-  setOpacity(val) {
-    const v = Math.max(0, Math.min(1, Number(val)));
-    opacityInput.value = String(v);
-    opacityVal.textContent = v.toFixed(2);
-    for (const layer of Object.values(municipalityLayers)) {
-      layer.setStyle({ fillOpacity: v });
-    }
-  },
-  setBorders(show) {
-    const s = !!show;
-    document.getElementById('showBorders').checked = s;
-    for (const layer of Object.values(municipalityLayers)) {
-      layer.setStyle({ color: s ? '#222' : 'transparent' });
-    }
-  },
-  zoomToPc4(pc4) {
-    const layer = indexByPc4.get(String(pc4));
-    if (!layer) return false;
-    map.fitBounds(layer.getBounds(), { padding: [20,20] });
-    return true;
-  },
-  enableMany(items) {
-    // items: [{ name: 'Altena', enabled: true, color: '#ff0000' }, ...]
-    items.forEach(({name, enabled, color}) => {
-      if (typeof enabled === 'boolean') this.setEnabled(name, enabled);
-      if (typeof color === 'string') this.setColor(name, color);
-    });
-  }
-};
-
-// URL-parameters ondersteunen: ?mun=Altena,Waalwijk&colors=Altena:#ff0000;Waalwijk:#00ff00&pc4=5144
-(function applyUrlParams(){
-  const sp = new URLSearchParams(location.search);
-  const mun = sp.get('mun');
-  const colors = sp.get('colors');
-  const pc4 = sp.get('pc4');
-
-  if (colors) {
-    colors.split(';').forEach(pair => {
-      const [nm, col] = pair.split(':');
-      if (nm && col) window.pc4App.setColor(nm.trim(), col.trim());
-    });
-  }
-  if (mun) {
-    mun.split(',').forEach(nm => window.pc4App.setEnabled(nm.trim(), true));
-  }
-  if (pc4) {
-    // wacht heel even tot indexByPc4 gevuld is
-    const tryZoom = () => {
-      if (indexByPc4.size === 0) return setTimeout(tryZoom, 100);
-      window.pc4App.zoomToPc4(pc4.trim());
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    // --- Config: gemeenten & PC4-reeksen ---
+    const MUNICIPALITIES = {
+      'Altena': [[4250,4255],[4260,4269],[4270,4273],[4280,4288]],
+      'Waalwijk': [[5141,5149]],
+      'Heusden': [[5150,5154],[5250,5256]],
+      'Loon op Zand': [[5170,5176]],
+      'Dongen': [[5100,5109]]
     };
-    tryZoom();
-  }
-})();
 
-// Opacity & randen
-const opacityInput = document.getElementById('opacity');
-const opacityVal = document.getElementById('opacityVal');
-opacityInput.addEventListener('input', () => {
-  const v = parseFloat(opacityInput.value);
-  opacityVal.textContent = v.toFixed(2);
-  for (const layer of Object.values(municipalityLayers)) {
-    layer.setStyle({ fillOpacity: v });
-  }
-});
+    // Default kleuren per gemeente
+    const DEFAULT_COLORS = {
+      'Altena': '#22c55e',
+      'Waalwijk': '#60a5fa',
+      'Heusden': '#f59e0b',
+      'Loon op Zand': '#ef4444',
+      'Dongen': '#a78bfa'
+    };
 
-document.getElementById('showBorders').addEventListener('change', (e) => {
-  const show = e.target.checked;
-  for (const layer of Object.values(municipalityLayers)) {
-    layer.setStyle({ color: show ? '#222' : 'transparent' });
-  }
-});
+    // Opslag
+    const layersByMunicipality = {};        // { name: L.GeoJSON }
+    const featureIndexByPC4 = {};           // { pc4: [L.Layer, ...] }
 
-// Zoeken en zoomen naar een PC4
-const pc4Input = document.getElementById('pc4Search');
-document.getElementById('zoomBtn').addEventListener('click', () => {
-  const val = (pc4Input.value || '').trim();
-  if (!/^\d{4}$/.test(val)) return alert('Voer een geldige PC4 in (4 cijfers).');
-  const layer = indexByPc4.get(val);
-  if (layer) {
-    map.fitBounds(layer.getBounds(), { padding: [20,20] });
-    layer.openPopup();
-  } else {
-    alert(`PC4 ${val} niet gevonden (zorg dat pc4.geojson geladen is).`);
-  }
-});
+    // UI refs
+    const errBox = document.getElementById('err');
+    const badgeSource = document.getElementById('badge-source');
+    const badgeFeatures = document.getElementById('badge-features');
+    const opacitySlider = document.getElementById('opacity');
+    const opacityVal = document.getElementById('opacity-val');
+    const bordersToggle = document.getElementById('toggle-borders');
 
-// --- Externe bron automatisch laden zonder upload ---
-async function loadFromArcgis(baseUrl) {
-  const clean = baseUrl.split('?')[0].replace(/\/$/, '');
-  const url = `${clean}/query?where=1%3D1&outFields=*&outSR=4326&f=geojson`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const geo = await r.json();
-    await applyGeojson(geo);
-    console.info('GeoJSON geladen via ArcGIS FeatureServer');
-  } catch (err) {
-    console.error('ArcGIS load error:', err);
-    alert('Laden via ArcGIS mislukt (controleer service-URL/CORS).');
-  }
-}
+    // --- Kaart init ---
+    const map = L.map('map').setView([51.6938, 5.0844], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap-bijdragers'
+    }).addTo(map);
 
-// Autoload via URL-parameters, bijv. ?source=arcgis&url=https://<host>/.../FeatureServer/0
-(function autoloadFromQuery(){
-  const sp = new URLSearchParams(location.search);
-  const src = sp.get('source');
-  const url = sp.get('url');
-  if (src === 'arcgis' && url) {
-    loadFromArcgis(url);
-  }
-})();
+    // Maak lege lagen per gemeente
+    const makeStyle = (name) => ({
+      color: bordersToggle.checked ? '#1f2937' : 'transparent',   // stroke color
+      weight: bordersToggle.checked ? 1 : 0,
+      fillColor: (document.querySelector(`[data-color-for="${cssEscape(name)}"]`)?.value) || DEFAULT_COLORS[name] || '#22c55e',
+      fillOpacity: parseFloat(opacitySlider.value)
+    });
 
-// GeoJSON laden (lokaal of via URL)
-async function applyGeojson(geo) {
-  allFeatures = geo && geo.type === 'FeatureCollection' ? geo.features : [];
-  indexByPc4 = new Map();
-  allFeatures.forEach(f => {
-    const pc4 = getPc4(f);
-    if (!pc4) return;
-    const lyr = L.geoJSON(f);
-    indexByPc4.set(String(pc4), lyr);
-  });
-  // Refresh zichtbare gemeenten
-  Object.keys(MUNICIPALITIES).forEach(name => renderMunicipality(name));
-}
-
-async function loadFromUrl(url) {
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const geo = await r.json();
-    await applyGeojson(geo);
-    alert('GeoJSON geladen van URL.');
-  } catch (err) {
-    console.error('Kon GeoJSON niet laden via URL:', err);
-    alert('Laden via URL mislukt. Controleer de URL en CORS-instellingen.');
-  }
-}
-
-function loadFromFile(file) {
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const geo = JSON.parse(e.target.result);
-      await applyGeojson(geo);
-      alert('GeoJSON geladen vanaf bestand.');
-    } catch (err) {
-      console.error('Kon lokaal bestand niet lezen:', err);
-      alert('Bestand is geen geldige GeoJSON.');
+    for (const muni of Object.keys(MUNICIPALITIES)) {
+      layersByMunicipality[muni] = L.geoJSON(null, {
+        style: () => makeStyle(muni),
+        onEachFeature: (feature, layer) => {
+          const pc4 = extractPC4(feature.properties);
+          const title = pc4 ? `PC4 ${pc4}` : 'PC4 onbekend';
+          layer.bindPopup(`${title} – ${muni}`);
+          if (pc4) {
+            if (!featureIndexByPC4[pc4]) featureIndexByPC4[pc4] = [];
+            featureIndexByPC4[pc4].push(layer);
+          }
+        }
+      }).addTo(map);
     }
-  };
-  reader.readAsText(file);
-}
 
-// UI events voor laden
-const loadUrlBtn = document.getElementById('loadUrlBtn');
-const geoUrl = document.getElementById('geoUrl');
-const geoFile = document.getElementById('geoFile');
+    // --- Sidebar: dynamisch besturingselementen renderen ---
+    const controlsHost = document.getElementById('muni-controls');
+    for (const muni of Object.keys(MUNICIPALITIES)) {
+      const id = muni.toLowerCase().replace(/\s+/g,'-');
+      const color = DEFAULT_COLORS[muni] || '#22c55e';
+      const block = document.createElement('div');
+      block.className = 'row';
+      block.innerHTML = `
+        <label class="flex-1"><input type="checkbox" checked data-toggle-for="${id}" /> ${muni}</label>
+        <input class="color" type="color" value="${color}" data-color-for="${id}" title="Kleur voor ${muni}" />
+      `;
+      controlsHost.appendChild(block);
 
-loadUrlBtn.addEventListener('click', () => {
-  const url = (geoUrl.value || '').trim();
-  if (!url) return alert('Voer eerst een URL in.');
-  loadFromUrl(url);
-});
+      block.querySelector(`[data-toggle-for="${id}"]`).addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        const layer = layersByMunicipality[muni];
+        if (!layer) return;
+        if (checked) { layer.addTo(map); } else { map.removeLayer(layer); }
+      });
 
-geoFile.addEventListener('change', (e) => {
-  const f = e.target.files && e.target.files[0];
-  if (f) loadFromFile(f);
-});
+      block.querySelector(`[data-color-for="${id}"]`).addEventListener('input', () => {
+        // update stijl voor deze laag
+        layersByMunicipality[muni].setStyle(() => makeStyle(muni));
+      });
+    }
 
-// Probeer standaard pc4.geojson uit dezelfde map te laden (optioneel)
-fetch('pc4.geojson')
-  .then(r => r.ok ? r.json() : Promise.reject(r.status))
-  .then(applyGeojson)
-  .catch(() => console.info('Geen pc4.geojson gevonden in dezelfde map (niet erg).'));
+    // Borders toggle & opacity
+    bordersToggle.addEventListener('change', applyGlobalStyles);
+    opacitySlider.addEventListener('input', () => {
+      opacityVal.textContent = Number(opacitySlider.value).toFixed(2);
+      applyGlobalStyles();
+    });
 
-// Helpers
-function getPc4(feature) {
-  // Probeer verschillende property-namen
-  const p = feature.properties || {};
-  let v = p.pc4 ?? p.PC4 ?? p.pc_4 ?? p.postcode4 ?? p.postcode ?? p.code;
-  if (v == null) return null;
-  v = String(v).trim();
-  // haal eventueel extra tekens weg (bijv. "5144 AB" -> "5144")
-  const m = v.match(/(\d{4})/);
-  return m ? m[1] : null;
-}
+    function applyGlobalStyles() {
+      for (const muni of Object.keys(layersByMunicipality)) {
+        layersByMunicipality[muni].setStyle(() => makeStyle(muni));
+      }
+    }
 
-function inRanges(pc4, ranges) {
-  const n = parseInt(pc4, 10);
-  if (Number.isNaN(n)) return false;
-  return ranges.some(([a,b]) => n >= a && n <= b);
-}
+    // Zoom naar PC4
+    document.getElementById('pc4-btn').addEventListener('click', () => {
+      const raw = document.getElementById('pc4-input').value.trim();
+      const pc4 = (raw.match(/\d{4}/) || [null])[0];
+      if (!pc4) return alert('Voer 4 cijfers in (PC4).');
+      zoomToPC4(pc4);
+    });
 
-function renderMunicipality(name) {
-  const cfg = MUNICIPALITIES[name];
-  const layer = municipalityLayers[name];
-  layer.clearLayers();
-  if (!cfg.enabled || allFeatures.length === 0) return;
+    function zoomToPC4(pc4) {
+      const layers = featureIndexByPC4[pc4];
+      if (!layers || layers.length === 0) {
+        alert(`Geen features gevonden voor PC4 ${pc4}.`);
+        return;
+      }
+      let bounds = null;
+      layers.forEach(l => {
+        const b = l.getBounds?.();
+        if (b) bounds = bounds ? bounds.extend(b) : b;
+      });
+      if (bounds) map.fitBounds(bounds.pad(0.15));
+    }
 
-  // Filter features die in de opgegeven reeksen vallen
-  const wanted = allFeatures.filter(f => {
-    const pc4 = getPc4(f);
-    return pc4 && inRanges(pc4, cfg.ranges);
-  });
+    // --- PC4 detectie ---
+    const PC4_KEYS = ['pc4','PC4','pc_4','postcode4','Postcode4','POSTCODE4','postcode','code','PC4_CODE','PC4CODE','pc4code'];
+    function extractPC4(props) {
+      if (!props) return null;
+      for (const k of PC4_KEYS) {
+        if (k in props) {
+          const val = props[k];
+          if (val == null) continue;
+          const str = String(val);
+          const m = str.match(/(\d{4})/);
+          if (m) return m[1];
+        }
+      }
+      return null;
+    }
 
-  layer.addData(wanted);
-  layer.setStyle({ fillColor: cfg.color });
-}
-</script>
+    // Bepaal gemeente o.b.v. PC4
+    function municipalityFromPC4(pc4) {
+      const n = Number(pc4);
+      for (const [muni, ranges] of Object.entries(MUNICIPALITIES)) {
+        for (const [a,b] of ranges) {
+          if (n >= a && n <= b) return muni;
+        }
+      }
+      return null;
+    }
+
+    // --- Data laden op basis van URL-parameters ---
+    const params = new URLSearchParams(location.search);
+    const source = params.get('source');
+    const url = params.get('url');
+    const typenames = params.get('typenames'); // voor WFS
+
+    if (source && url) {
+      badgeSource.textContent = `bron: ${source}`;
+      autoload(source, url, typenames).catch(showError);
+    } else {
+      badgeSource.textContent = 'bron: (geen – gebruik URL-parameters)';
+    }
+
+    async function autoload(source, baseUrl, typenames) {
+      try {
+        let fetchUrl = '';
+        if (source === 'arcgis') {
+          fetchUrl = buildArcGisQueryUrl(baseUrl);
+        } else if (source === 'wfs') {
+          if (!typenames) throw new Error('WFS vereist parameter "typenames".');
+          fetchUrl = buildWFSUrl(baseUrl, typenames);
+        } else if (source === 'github') {
+          // Verwacht een GitHub Contents API URL
+          const data = await fetchGithubGeoJSON(baseUrl);
+          await ingestGeoJSON(data);
+          return;
+        } else {
+          throw new Error(`Onbekende source: ${source}`);
+        }
+
+        const fc = await fetchGeoJSON(fetchUrl);
+        await ingestGeoJSON(fc);
+      } catch (e) {
+        showError(e);
+      }
+    }
+
+    function buildArcGisQueryUrl(layerUrl) {
+      // Zorg dat we /query met de juiste parameters gebruiken
+      const hasQuery = /\/query(\?|$)/.test(layerUrl);
+      const base = hasQuery ? layerUrl.replace(/\/query.*$/, '/query') : (layerUrl.replace(/\/$/, '') + '/query');
+      const url = new URL(base);
+      url.searchParams.set('where', '1=1');
+      url.searchParams.set('outFields', '*');
+      url.searchParams.set('outSR', '4326');
+      url.searchParams.set('f', 'geojson');
+      return url.toString();
+    }
+
+    function buildWFSUrl(base, typeNames) {
+      const u = new URL(base);
+      u.searchParams.set('service', 'WFS');
+      u.searchParams.set('version', '2.0.0');
+      u.searchParams.set('request', 'GetFeature');
+      u.searchParams.set('typenames', typeNames);
+      u.searchParams.set('outputFormat', 'application/json');
+      u.searchParams.set('srsName', 'EPSG:4326');
+      return u.toString();
+    }
+
+    async function fetchGithubGeoJSON(apiUrl) {
+      // Verwacht GitHub REST: https://api.github.com/repos/:owner/:repo/contents/:path?ref=branch
+      try {
+        const res = await fetch(apiUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+        if (!res.ok) throw new Error(`GitHub API fout: ${res.status} ${res.statusText}`);
+        const json = await res.json();
+        if (!json.content) throw new Error('Ongeldig GitHub API antwoord (geen content).');
+        const text = atob(json.content.replace(/\n/g, ''));
+        const data = JSON.parse(text);
+        return data;
+      } catch (e) {
+        throw new Error(`GitHub laden mislukt: ${e.message}`);
+      }
+    }
+
+    async function fetchGeoJSON(u) {
+      try {
+        const res = await fetch(u, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status} bij ophalen van GeoJSON.`);
+        const data = await res.json();
+        if (!data || (!data.type && !data.features)) throw new Error('Antwoord is geen geldige GeoJSON FeatureCollection.');
+        return data;
+      } catch (e) {
+        if (e.name === 'TypeError') {
+          // vaak CORS
+          throw new Error('Netwerk/CORS fout bij ophalen van data. Controleer CORS-instellingen of gebruik een CORS-vriendelijke endpoint.');
+        }
+        throw e;
+      }
+    }
+
+    async function ingestGeoJSON(fc) {
+      // Leeg bestaande lagen & index
+      for (const muni of Object.keys(layersByMunicipality)) {
+        layersByMunicipality[muni].clearLayers();
+      }
+      for (const k of Object.keys(featureIndexByPC4)) delete featureIndexByPC4[k];
+
+      let total = 0;
+      const feats = fc.features || [];
+      for (const f of feats) {
+        const pc4 = extractPC4(f.properties);
+        if (!pc4) continue;
+        const muni = municipalityFromPC4(pc4);
+        if (!muni) continue; // negeer features buiten de gedefinieerde gemeenten
+        layersByMunicipality[muni].addData(f);
+        total++;
+      }
+
+      // Status & logs
+      badgeFeatures.textContent = `features: ${total}`;
+      console.log(`[PC4 Loader] Ingeladen features: ${total}`);
+
+      // Fit naar alle zichtbare lagen indien iets geladen is
+      let bounds = null;
+      for (const muni of Object.keys(layersByMunicipality)) {
+        const layer = layersByMunicipality[muni];
+        if (!map.hasLayer(layer)) continue;
+        const b = layer.getBounds?.();
+        if (b && b.isValid()) bounds = bounds ? bounds.extend(b) : b;
+      }
+      if (bounds) map.fitBounds(bounds.pad(0.15));
+    }
+
+    function showError(err) {
+      console.error(err);
+      errBox.textContent = `Fout: ${err.message || err}`;
+      errBox.style.display = 'block';
+    }
+
+    // CSS escape helper voor querySelector attributen
+    function cssEscape(s) {
+      return String(s).replace(/[^a-zA-Z0-9_-]/g, m => `\\${m}`);
+    }
+  </script>
 </body>
 </html>
