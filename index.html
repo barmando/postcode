@@ -71,6 +71,72 @@
     const PDOK_WFS_YEAR  = '2024';
     const FETCHED_ON = new Date().toISOString().slice(0,10);
 
+    // Helper: haal demografie op (WFS met quotes) met OGC-fallback
+    async function renderDemography(lyr, code){
+      try {
+        // 1) WFS met nette encoding + quotes in cql_filter
+        const wfs = new URL(`https://service.pdok.nl/cbs/postcode4/${PDOK_WFS_YEAR}/wfs/v1_0`);
+        const wfsParams = new URLSearchParams({
+          service:'WFS', request:'GetFeature', version:'2.0.0', typeNames:'postcode4', outputFormat:'application/json', cql_filter:`pc4='${code}'`
+        });
+        wfs.search = wfsParams.toString();
+
+        let resp = await fetch(wfs.toString());
+        if(!resp.ok) throw new Error('WFS HTTP '+resp.status);
+        let data = await resp.json();
+        let props = data?.features?.[0]?.properties || null;
+
+        // 2) OGC API fallback (soms betrouwbaarder)
+        if(!props){
+          const ogc = new URL(`https://service.pdok.nl/cbs/postcode4/${PDOK_WFS_YEAR}/ogc/features/v1/collections/postcode4/items`);
+          ogc.searchParams.set('limit','1');
+          ogc.searchParams.set('f','json');
+          ogc.searchParams.set('filter', `pc4='${code}'`);
+          const r2 = await fetch(ogc.toString());
+          if(!r2.ok) throw new Error('OGC HTTP '+r2.status);
+          const j2 = await r2.json();
+          props = j2?.features?.[0]?.properties || null;
+        }
+
+        const CANDIDATES = [
+          ['Inwoners', ['aantal_inwoners','inwoners_totaal','inwoners']],
+          ['Huishoudens', ['aantal_huishoudens','huishoudens']],
+          ['Bevolkingsdichtheid (/km²)', ['bevolkingsdichtheid','bev_dichtheid']],
+          ['Gem. huish. grootte', ['gemiddelde_huishoudensgrootte','huishoudens_gem_grootte']],
+          ['0–14 jaar', ['leeftijd_0_14','p_00_14','a_00_14']],
+          ['15–24 jaar', ['leeftijd_15_24','p_15_24','a_15_24']],
+          ['25–44 jaar', ['leeftijd_25_44','p_25_44','a_25_44']],
+          ['45–64 jaar', ['leeftijd_45_64','p_45_64','a_45_64']],
+          ['65+ jaar', ['leeftijd_65_plus','p_65_plus','a_65plus']],
+          ['Mannen', ['mannen','aantal_mannen']],
+          ['Vrouwen', ['vrouwen','aantal_vrouwen']],
+        ];
+        const pickFirst = (o, keys) => keys.find(k => o && o[k] != null);
+
+        let rows = [];
+        if(props){
+          for (const [label, keys] of CANDIDATES) {
+            const k = pickFirst(props, keys);
+            if (k) rows.push(`<tr><td>${label}</td><td style="text-align:right">${props[k]}</td></tr>`);
+          }
+          if (rows.length === 0){
+            // toon alle velden (max 20) zodat je ziet hoe ze heten
+            rows = Object.entries(props)
+              .filter(([k]) => !/^geom/i.test(k))
+              .slice(0,20)
+              .map(([k,v]) => `<tr><td>${k.replace(/_/g,' ')}</td><td style="text-align:right">${v}</td></tr>`);
+          }
+        }
+
+        const table  = rows.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows.join('')}</table>` : '<em>Geen detailvelden</em>';
+        const footer = `<div style="margin-top:6px;color:#6b7280;font-size:11px">Bron: PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} · Opgehaald: ${FETCHED_ON}</div>`;
+        lyr.setPopupContent(`PC4: <strong>${code}</strong><br>${table}${footer}`);
+      } catch (e){
+        console.error('Demografie ophalen mislukt voor', code, e);
+        lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Live ophalen mislukt</em><div style="margin-top:6px;color:#6b7280;font-size:11px">Dataset: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}</div>`);
+      }
+    }
+
     // Selecties & index
     const selected = new Map(); // pc4 -> color
     const index    = new Map(); // pc4 -> Leaflet layer
@@ -123,97 +189,10 @@
       const btnDel     = row.querySelector('.btn-del');
       const pc4Label   = row.querySelector('.pc4');
 
-      const apply = () => { selected.set(pc4, colorInput.value); refreshStyles(); };
-      colorInput.addEventListener('input', apply);
-      btnZoom.addEventListener('click', () => zoomTo(pc4));
-      pc4Label.addEventListener('click', () => zoomTo(pc4));
-      btnDel.addEventListener('click', () => { selected.delete(pc4); refreshStyles(); row.remove(); });
-
-      return row;
-    }
-
-    function randomColor(){
-      const palette = ['#2563eb','#16a34a','#e11d48','#9333ea','#f59e0b','#0ea5e9','#22c55e','#ef4444','#a855f7','#f97316'];
-      return palette[Math.floor(Math.random() * palette.length)];
-    }
-
-    function addPc4(pc4, color = randomColor()){
-      if (!index.has(pc4)) return;       // PC4 niet in dataset
-      if (selected.has(pc4)) return;     // al aanwezig
-      selected.set(pc4, color);
-      listEl.appendChild(makeItem(pc4, color));
-      refreshStyles();
-    }
-
-    function parseInputToPc4s(text){
-      const parts = text.split(/[ ,]+/).filter(Boolean);
-      const out = new Set();
-      for (const p of parts){
-        const norm = p.replace(/[–—−]/g, '-').trim();
-        if (/^[0-9]{4}-[0-9]{4}$/.test(norm)) {
-          const ab = norm.split('-');
-          const a = parseInt(ab[0], 10); const b = parseInt(ab[1], 10);
-          const s = Math.min(a,b), e = Math.max(a,b);
-          for (let v=s; v<=e; v++) out.add(String(v).padStart(4,'0'));
-        } else if (/^[0-9]{4}$/.test(norm)) {
-          out.add(norm);
-        }
-      }
-      return [...out];
-    }
-
-    // GeoJSON laden
-    fetch(GEOJSON_URL)
-      .then(r => { if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(data => {
-        geo = L.geoJSON(data, {
-          style: styleFor,
-          onEachFeature: (f, lyr) => {
-            const code = getPc4(f.properties);
-            if (code) index.set(code, lyr);
-            lyr.on('click', () => {
-              if (selected.has(code)) {
-                selected.delete(code);
-                // verwijder item uit lijst
-                const items = Array.from(listEl.querySelectorAll('.item .pc4'));
-                const hit = items.find(el => el.textContent === code);
-                if (hit) hit.parentElement.remove();
-              } else {
-                const c = randomColor();
-                selected.set(code, c);
-                listEl.appendChild(makeItem(code, c));
-              }
-              refreshStyles();
-              const url = `https://service.pdok.nl/cbs/postcode4/${PDOK_WFS_YEAR}/wfs/v1_0?service=WFS&request=GetFeature&version=2.0.0&typeNames=postcode4&outputFormat=application/json&CQL_FILTER=pc4=${code}`;
+      const apply = () => { selected.set(pc4, colorInput.value); refreshStyles();
+              // Demografie laden (WFS met quotes + OGC fallback)
               lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Demografie laden…</em>`);
-              fetch(url)
-                .then(r=>r.json())
-                .then(j=>{
-                  const props = j?.features?.[0]?.properties || {};
-                  const fields = [
-                    ['Inwoners', 'aantal_inwoners'],
-                    ['Huishoudens', 'aantal_huishoudens'],
-                    ['Bevolkingsdichtheid (/km²)', 'bevolkingsdichtheid'],
-                    ['Gem. huish. grootte', 'gemiddelde_huishoudensgrootte'],
-                    ['0–14 jaar', 'leeftijd_0_14'],
-                    ['15–24 jaar', 'leeftijd_15_24'],
-                    ['25–44 jaar', 'leeftijd_25_44'],
-                    ['45–64 jaar', 'leeftijd_45_64'],
-                    ['65+ jaar', 'leeftijd_65_plus'],
-                    ['Mannen', 'mannen'],
-                    ['Vrouwen', 'vrouwen']
-                  ];
-                  const rows = fields
-                    .map(([label,key]) => props[key] != null ? `<tr><td>${label}</td><td style="text-align:right">${props[key]}</td></tr>` : '')
-                    .filter(Boolean)
-                    .join('');
-                  const table = rows ? `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows}</table>` : '<em>Geen detailvelden beschikbaar</em>';
-                  const footer = `<div style=\"margin-top:6px;color:#6b7280;font-size:11px\">Bron: PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} · Opgehaald: ${FETCHED_ON}</div>`;
-                  lyr.setPopupContent(`PC4: <strong>${code}</strong><br>${table}${footer}`);
-                })
-                .catch(()=>{
-                  lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Live ophalen mislukt</em><div style=\"margin-top:6px;color:#6b7280;font-size:11px\">Dataset: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}</div>`);
-                });
+              renderDemography(lyr, code);
               lyr.openPopup();
             });
             lyr.bindPopup(code ? `PC4: <strong>${code}</strong>` : 'PC4');
