@@ -3,17 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PC4 – Noord‑Brabant (Leaflet)</title>
-  <!-- Leaflet CSS -->
+  <title>PC4 – Noord-Brabant (selecteer & kleur)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; }
-    .panel { position: absolute; z-index: 1000; left: 12px; top: 12px; background: rgba(255,255,255,0.95); border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .panel { position: absolute; z-index: 1000; left: 12px; top: 12px; background: rgba(255,255,255,0.96); border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; width: 300px; }
     .panel h1 { font-size: 16px; margin: 0 0 6px; }
     .panel p { margin: 0 0 8px; font-size: 13px; color: #4b5563; }
-    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 6px 0; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .row input[type="text"] { flex: 1; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .row button { padding: 6px 10px; border: 1px solid #e5e7eb; background: #fff; border-radius: 8px; cursor: pointer; }
+    .legend { margin-top: 8px; max-height: 180px; overflow: auto; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; border: 1px solid #0001; }
     .footer { position: absolute; right: 12px; bottom: 12px; z-index: 1000; background: rgba(255,255,255,0.95); border: 1px solid #e5e7eb; border-radius: 999px; padding: 6px 10px; font-size: 12px; color: #4b5563; }
   </style>
 </head>
@@ -21,48 +24,127 @@
   <div id="map"></div>
 
   <div class="panel">
-    <h1>Postcode 4 – Noord‑Brabant</h1>
-    <p>GeoJSON wordt geladen uit <code>cbs_postcode4_brabant.geojson</code> (zelfde map als deze pagina).</p>
-    <div class="legend-item"><span class="dot" style="background:#2563eb"></span><span>PC4-polygonen</span></div>
+    <h1>Postcode 4 – Noord-Brabant</h1>
+    <p>Klik een vlak om te selecteren. Gebruik de kleurkiezer en het veld om meerdere PC4-codes tegelijk te markeren.</p>
+    <div class="row">
+      <label for="colorPicker" style="font-size:13px; color:#4b5563;">Kleur</label>
+      <input id="colorPicker" type="color" value="#2563eb"/>
+      <button id="btnClear">Wissen</button>
+    </div>
+    <div class="row">
+      <input id="pc4Input" type="text" placeholder="Bijv: 5141, 5142, 5170-5173"/>
+      <button id="btnApply">Markeer</button>
+    </div>
+    <div class="legend" id="legend"></div>
   </div>
 
   <div class="footer">© OpenStreetMap contributors</div>
 
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     // 1) Basiskaart
     const map = L.map('map', { scrollWheelZoom: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
-    // 2) GeoJSON pad (relatief, staat in dezelfde directory als index.html)
+    // 2) GeoJSON pad (zelfde directory als deze pagina)
     const GEOJSON_URL = 'cbs_postcode4_brabant.geojson';
 
-    // 3) Stijl voor de PC4-vlakken
-    const layerStyle = { color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: 0.15 };
+    // 3) Selectie-administratie
+    const selected = new Map(); // pc4 -> color
+    const index = new Map();    // pc4 -> layer
 
-    // 4) Laden en tonen
+    function getPc4(props){
+      const v = props.pc4 ?? props.PC4 ?? props.postcode4 ?? props.Postcode4 ?? props.postcode;
+      return v != null ? String(v).padStart(4,'0') : null;
+    }
+
+    function baseStyle(){ return { color: '#1f2937', weight: 0.8, fillColor: '#93c5fd', fillOpacity: 0.05 }; }
+
+    function styleFor(feature){
+      const pc4 = getPc4(feature.properties);
+      if(pc4 && selected.has(pc4)){
+        const color = selected.get(pc4);
+        return { color, weight: 1.2, fillColor: color, fillOpacity: 0.35 };
+      }
+      return baseStyle();
+    }
+
+    let geo = null;
+    function refreshStyles(){ if(!geo) return; geo.eachLayer(l => l.setStyle(styleFor(l.feature))); }
+
+    function updateLegend(){
+      const el = document.getElementById('legend');
+      el.innerHTML = '';
+      const entries = [...selected.entries()].sort();
+      if(!entries.length){ el.innerHTML = '<em style="color:#6b7280;font-size:12px;">Nog niets geselecteerd</em>'; return; }
+      for(const [pc4,color] of entries){
+        const d = document.createElement('div');
+        d.className = 'legend-item';
+        d.innerHTML = `<span class="dot" style="background:${color}"></span><span>PC4 <strong>${pc4}</strong></span>`;
+        el.appendChild(d);
+      }
+    }
+
+    function zoomTo(pc4s){
+      const layers = pc4s.map(p=>index.get(p)).filter(Boolean);
+      if(!layers.length) return;
+      const b = layers[0].getBounds().clone();
+      for(let i=1;i<layers.length;i++) b.extend(layers[i].getBounds());
+      map.fitBounds(b.pad(0.05));
+    }
+
+    // 4) Laden van GeoJSON
     fetch(GEOJSON_URL)
-      .then(r => {
-        if (!r.ok) throw new Error('HTTP '+r.status);
-        return r.json();
-      })
+      .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
       .then(data => {
-        const pc4 = L.geoJSON(data, {
-          style: layerStyle,
+        geo = L.geoJSON(data, {
+          style: styleFor,
           onEachFeature: (f, lyr) => {
-            const pc4 = f.properties.pc4 ?? f.properties.PC4 ?? f.properties.postcode4;
-            lyr.bindPopup(pc4 ? `PC4: <strong>${pc4}</strong>` : 'PC4');
+            const code = getPc4(f.properties);
+            if(code) index.set(code, lyr);
+            lyr.on('click', () => {
+              const color = document.getElementById('colorPicker').value || '#2563eb';
+              if(code){
+                // zelfde kleur = toggle uit; andere kleur = herkleuren
+                if(selected.has(code) && selected.get(code) === color){ selected.delete(code); }
+                else { selected.set(code, color); }
+                refreshStyles(); updateLegend();
+              }
+            });
+            lyr.bindPopup(code ? `PC4: <strong>${code}</strong>` : 'PC4');
           }
         }).addTo(map);
-        map.fitBounds(pc4.getBounds().pad(0.05));
+        map.fitBounds(geo.getBounds().pad(0.05));
       })
-      .catch(err => {
-        console.error('GeoJSON laden mislukt:', err);
-        alert('Kon cbs_postcode4_brabant.geojson niet laden. Controleer bestandsnaam/locatie.');
-      });
+      .catch(err => { console.error('GeoJSON laden mislukt:', err); alert('Kon '+GEOJSON_URL+' niet laden.'); });
+
+    // 5) UI: meerdere codes tegelijk kleuren
+    document.getElementById('btnApply').addEventListener('click', () => {
+      const color = document.getElementById('colorPicker').value || '#2563eb';
+      const raw = document.getElementById('pc4Input').value;
+      const parts = raw.split(/[,\s]+/).filter(Boolean);
+      const targets = [];
+      for(const p of parts){
+        const norm = p.replace(/[–—−]/g,'-').trim(); // alle streepjes normaliseren
+        if(/^\d{4}-\d{4}$/.test(norm)){            // range
+          const [a,b] = norm.split('-').map(n=>parseInt(n,10));
+          const s = Math.min(a,b), e = Math.max(a,b);
+          for(let v=s; v<=e; v++){
+            const code = String(v).padStart(4,'0');
+            if(index.has(code)) { selected.set(code, color); targets.push(code); }
+          }
+        } else if(/^\d{4}$/.test(norm)){           // losse code
+          const code = norm;
+          if(index.has(code)) { selected.set(code, color); targets.push(code); }
+        }
+      }
+      refreshStyles(); updateLegend(); if(targets.length) zoomTo(targets);
+    });
+
+    // 6) Alles wissen
+    document.getElementById('btnClear').addEventListener('click', () => {
+      selected.clear(); refreshStyles(); updateLegend();
+    });
   </script>
 </body>
 </html>
