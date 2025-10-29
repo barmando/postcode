@@ -1,53 +1,242 @@
-const url = `https://service.pdok.nl/cbs/postcode4/${PDOK_WFS_YEAR}/wfs/v1_0?service=WFS&request=GetFeature&version=2.0.0&typeNames=postcode4&outputFormat=application/json&CQL_FILTER=pc4=${code}`;
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PC4 – Noord‑Brabant (selecteer & kleur per postcode)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <style>
+    :root{ --border:#e5e7eb; --muted:#6b7280; --shadow:0 6px 18px rgba(0,0,0,.08); }
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+    .panel { position: absolute; z-index: 1000; left: 12px; top: 12px; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); width: 360px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .title h1 { font-size: 16px; margin: 0; }
+    .subtitle { margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
+    .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .row input[type="text"] { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
+    .btn { padding: 8px 10px; border: 1px solid var(--border); background: #fff; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    .btn:hover{ background:#f9fafb; }
+    .list { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; max-height: 240px; overflow: auto; }
+    .item { display:grid; grid-template-columns: 72px 1fr auto auto; align-items:center; gap:8px; padding:6px 0; border-bottom: 1px dashed #eef; }
+    .item:last-child{ border-bottom:none; }
+    .item .pc4 { font-weight:600; cursor:pointer; }
+    .item button { border: 1px solid var(--border); background:#fff; border-radius: 8px; padding:6px 8px; cursor:pointer; }
+    .item button:hover{ background:#f8fafc; }
+    .tip { font-size:12px; color:#6b7280; margin-top:6px; }
+    .footer { position: absolute; right: 12px; bottom: 12px; z-index: 1000; background: rgba(255,255,255,0.95); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; font-size: 12px; color: #4b5563; box-shadow: var(--shadow); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
 
-lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Demografie laden…</em>`);
+  <div class="panel" role="region" aria-label="PC4 selectie">
+    <div class="title">
+      <h1>Postcode 4 – Noord‑Brabant</h1>
+      <button id="btnClearAll" class="btn" title="Wis alle kleuren">Wissen</button>
+    </div>
+    <div class="subtitle">Klik een vlak om toe te voegen of voer PC4’s in. Per postcode kies je een eigen kleur.</div>
 
-fetch(url)
-  .then(r => r.json())
-  .then(j => {
-    const props = j?.features?.[0]?.properties || {};
-    // Log beschikbaar voor debuggen (F12 → Console)
-    console.log('PC4', code, 'velden:', Object.keys(props));
+    <div class="row">
+      <input id="pc4Input" type="text" placeholder="Bijv: 5141, 5142, 5170-5173"/>
+      <button id="btnAdd" class="btn">Toevoegen</button>
+    </div>
+    <div class="tip">Gebruik komma’s/spaties of ranges met een streepje. Klik in de lijst op een PC4 om in te zoomen.</div>
 
-    // Bekende velden (meerdere alias-opties per label)
-    const CANDIDATES = [
-      ['Inwoners', ['aantal_inwoners','inwoners_totaal','inwoners']],
-      ['Huishoudens', ['aantal_huishoudens','huishoudens']],
-      ['Bevolkingsdichtheid (/km²)', ['bevolkingsdichtheid','bev_dichtheid']],
-      ['Gem. huish. grootte', ['gemiddelde_huishoudensgrootte','huishoudens_gem_grootte']],
-      ['0–14 jaar', ['leeftijd_0_14','p_00_14','a_00_14']],
-      ['15–24 jaar', ['leeftijd_15_24','p_15_24','a_15_24']],
-      ['25–44 jaar', ['leeftijd_25_44','p_25_44','a_25_44']],
-      ['45–64 jaar', ['leeftijd_45_64','p_45_64','a_45_64']],
-      ['65+ jaar', ['leeftijd_65_plus','p_65_plus','a_65plus']],
-      ['Mannen', ['mannen','aantal_mannen']],
-      ['Vrouwen', ['vrouwen','aantal_vrouwen']],
-    ];
+    <div id="meta" class="tip" aria-live="polite"></div>
 
-    const pickFirst = (obj, keys) => keys.find(k => obj[k] != null);
+    <div id="sources" class="tip" style="margin-top:4px"></div>
 
-    let rows = [];
-    for (const [label, keys] of CANDIDATES) {
-      const k = pickFirst(props, keys);
-      if (k) rows.push(`<tr><td>${label}</td><td style="text-align:right">${props[k]}</td></tr>`);
+    <div class="list" id="pc4List" aria-live="polite"></div>
+  </div>
+
+  <div class="footer">© OpenStreetMap contributors</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    // Kaart + baselayers (geen basisscholen)
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' });
+    const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap, &copy; CARTO' });
+    const cartoDark  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',  { attribution: '&copy; OpenStreetMap, &copy; CARTO' });
+    const cartoLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png');
+
+    const map = L.map('map', { scrollWheelZoom: true, layers: [cartoLight, cartoLabels] });
+    const baseLayers = { 'Carto Light (zonder labels)': cartoLight, 'Carto Dark (zonder labels)': cartoDark, 'OSM (met labels)': osm };
+    const overlays = { 'Labels (aan/uit)': cartoLabels };
+    L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
+
+    // GeoJSON-bestand (zelfde map als deze pagina)
+    const GEOJSON_URL = 'cbs_postcode4_brabant.geojson';
+    const DATASET_VERSION = 'CBS Postcode4 2024';
+    const PDOK_WFS_YEAR  = '2024';
+    const FETCHED_ON = new Date().toISOString().slice(0,10);
+
+    // Selecties & index
+    const selected = new Map(); // pc4 -> color
+    const index    = new Map(); // pc4 -> Leaflet layer
+
+    function getPc4(props){
+      const v = props.pc4 ?? props.PC4 ?? props.postcode4 ?? props.Postcode4 ?? props.postcode;
+      return v != null ? String(v).padStart(4, '0') : null;
     }
 
-    // Fallback: als niets van bovenstaand bestaat, toon alle velden (max 20) netjes
-    if (rows.length === 0) {
-      rows = Object.entries(props)
-        .filter(([k]) => !/^geom/i.test(k))          // geometry-veld overslaan
-        .slice(0, 20)                                // niet eindeloos
-        .map(([k, v]) => {
-          // label wat leesbaarder maken
-          const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-          return `<tr><td>${label}</td><td style="text-align:right">${v}</td></tr>`;
-        });
+    function baseStyle(){ return { color: '#1f2937', weight: 0.8, fillColor: '#93c5fd', fillOpacity: 0.06 }; }
+    function styleFor(feature){
+      const pc4 = getPc4(feature.properties);
+      if (pc4 && selected.has(pc4)) {
+        const color = selected.get(pc4);
+        return { color, weight: 1.5, fillColor: color, fillOpacity: 0.35 };
+      }
+      return baseStyle();
     }
 
-    const table = `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows.join('')}</table>`;
-    const footer = `<div style="margin-top:6px;color:#6b7280;font-size:11px">Bron: PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} · Opgehaald: ${FETCHED_ON}</div>`;
-    lyr.setPopupContent(`PC4: <strong>${code}</strong><br>${table}${footer}`);
-  })
-  .catch(() => {
-    lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Live ophalen mislukt</em><div style="margin-top:6px;color:#6b7280;font-size:11px">Dataset: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}</div>`);
-  });
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const metaEl = document.getElementById('meta');
+      if(metaEl){ metaEl.textContent = `Datasetversie: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}`; }
+      const srcEl = document.getElementById('sources');
+      if(srcEl){
+        srcEl.innerHTML = `Bronnen: <strong>Geometrie</strong> – CBS Postcode4 2024 (CC BY 4.0); <strong>Attribuutdata</strong> – PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} (CC BY 4.0).`;
+      }
+    });
+
+    let geo = null;
+    function refreshStyles(){ if(!geo) return; geo.eachLayer(l => l.setStyle(styleFor(l.feature))); }
+    function zoomTo(pc4){ const lyr = index.get(pc4); if(!lyr) return; map.fitBounds(lyr.getBounds().pad(0.05)); lyr.openPopup(); }
+
+    // UI helpers
+    const listEl   = document.getElementById('pc4List');
+    const inputEl  = document.getElementById('pc4Input');
+    const addBtn   = document.getElementById('btnAdd');
+    const clearBtn = document.getElementById('btnClearAll');
+
+    function makeItem(pc4, color){
+      const row = document.createElement('div');
+      row.className = 'item';
+      row.innerHTML = `
+        <div class="pc4" title="Klik om te zoomen">${pc4}</div>
+        <input type="color" value="${color}" aria-label="Kleur voor ${pc4}" />
+        <button class="btn btn-zoom">Zoom</button>
+        <button class="btn btn-del">Verwijder</button>
+      `;
+      const colorInput = row.querySelector('input[type="color"]');
+      const btnZoom    = row.querySelector('.btn-zoom');
+      const btnDel     = row.querySelector('.btn-del');
+      const pc4Label   = row.querySelector('.pc4');
+
+      const apply = () => { selected.set(pc4, colorInput.value); refreshStyles(); };
+      colorInput.addEventListener('input', apply);
+      btnZoom.addEventListener('click', () => zoomTo(pc4));
+      pc4Label.addEventListener('click', () => zoomTo(pc4));
+      btnDel.addEventListener('click', () => { selected.delete(pc4); refreshStyles(); row.remove(); });
+
+      return row;
+    }
+
+    function randomColor(){
+      const palette = ['#2563eb','#16a34a','#e11d48','#9333ea','#f59e0b','#0ea5e9','#22c55e','#ef4444','#a855f7','#f97316'];
+      return palette[Math.floor(Math.random() * palette.length)];
+    }
+
+    function addPc4(pc4, color = randomColor()){
+      if (!index.has(pc4)) return;       // PC4 niet in dataset
+      if (selected.has(pc4)) return;     // al aanwezig
+      selected.set(pc4, color);
+      listEl.appendChild(makeItem(pc4, color));
+      refreshStyles();
+    }
+
+    function parseInputToPc4s(text){
+      const parts = text.split(/[ ,]+/).filter(Boolean);
+      const out = new Set();
+      for (const p of parts){
+        const norm = p.replace(/[–—−]/g, '-').trim();
+        if (/^[0-9]{4}-[0-9]{4}$/.test(norm)) {
+          const ab = norm.split('-');
+          const a = parseInt(ab[0], 10); const b = parseInt(ab[1], 10);
+          const s = Math.min(a,b), e = Math.max(a,b);
+          for (let v=s; v<=e; v++) out.add(String(v).padStart(4,'0'));
+        } else if (/^[0-9]{4}$/.test(norm)) {
+          out.add(norm);
+        }
+      }
+      return [...out];
+    }
+
+    // GeoJSON laden
+    fetch(GEOJSON_URL)
+      .then(r => { if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(data => {
+        geo = L.geoJSON(data, {
+          style: styleFor,
+          onEachFeature: (f, lyr) => {
+            const code = getPc4(f.properties);
+            if (code) index.set(code, lyr);
+            lyr.on('click', () => {
+              if (selected.has(code)) {
+                selected.delete(code);
+                // verwijder item uit lijst
+                const items = Array.from(listEl.querySelectorAll('.item .pc4'));
+                const hit = items.find(el => el.textContent === code);
+                if (hit) hit.parentElement.remove();
+              } else {
+                const c = randomColor();
+                selected.set(code, c);
+                listEl.appendChild(makeItem(code, c));
+              }
+              refreshStyles();
+              const url = `https://service.pdok.nl/cbs/postcode4/${PDOK_WFS_YEAR}/wfs/v1_0?service=WFS&request=GetFeature&version=2.0.0&typeNames=postcode4&outputFormat=application/json&CQL_FILTER=pc4=${code}`;
+              lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Demografie laden…</em>`);
+              fetch(url)
+                .then(r=>r.json())
+                .then(j=>{
+                  const props = j?.features?.[0]?.properties || {};
+                  const fields = [
+                    ['Inwoners', 'aantal_inwoners'],
+                    ['Huishoudens', 'aantal_huishoudens'],
+                    ['Bevolkingsdichtheid (/km²)', 'bevolkingsdichtheid'],
+                    ['Gem. huish. grootte', 'gemiddelde_huishoudensgrootte'],
+                    ['0–14 jaar', 'leeftijd_0_14'],
+                    ['15–24 jaar', 'leeftijd_15_24'],
+                    ['25–44 jaar', 'leeftijd_25_44'],
+                    ['45–64 jaar', 'leeftijd_45_64'],
+                    ['65+ jaar', 'leeftijd_65_plus'],
+                    ['Mannen', 'mannen'],
+                    ['Vrouwen', 'vrouwen']
+                  ];
+                  const rows = fields
+                    .map(([label,key]) => props[key] != null ? `<tr><td>${label}</td><td style="text-align:right">${props[key]}</td></tr>` : '')
+                    .filter(Boolean)
+                    .join('');
+                  const table = rows ? `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows}</table>` : '<em>Geen detailvelden beschikbaar</em>';
+                  const footer = `<div style=\"margin-top:6px;color:#6b7280;font-size:11px\">Bron: PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} · Opgehaald: ${FETCHED_ON}</div>`;
+                  lyr.setPopupContent(`PC4: <strong>${code}</strong><br>${table}${footer}`);
+                })
+                .catch(()=>{
+                  lyr.setPopupContent(`PC4: <strong>${code}</strong><br><em>Live ophalen mislukt</em><div style=\"margin-top:6px;color:#6b7280;font-size:11px\">Dataset: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}</div>`);
+                });
+              lyr.openPopup();
+            });
+            lyr.bindPopup(code ? `PC4: <strong>${code}</strong>` : 'PC4');
+          }
+        }).addTo(map);
+        map.fitBounds(geo.getBounds().pad(0.05));
+      })
+      .catch(err => { console.error('GeoJSON laden mislukt:', err); alert('Kon '+GEOJSON_URL+' niet laden.'); });
+
+    // Knoppen
+    addBtn.addEventListener('click', () => {
+      const raw = inputEl.value || '';
+      const pc4s = parseInputToPc4s(raw);
+      pc4s.forEach(code => addPc4(code));
+      if (pc4s.length === 1) zoomTo(pc4s[0]);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      selected.clear(); refreshStyles(); listEl.innerHTML = '';
+    });
+
+    // SCHAAL
+    L.control.scale({ metric:true, imperial:false }).addTo(map);
+  </script>
+</body>
+</html>
