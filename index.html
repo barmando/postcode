@@ -3,40 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PC4 Postcodes – Leaflet (Single HTML, PDOK fallback)</title>
+  <title>PC4 Postcodes – Leaflet (Single HTML)</title>
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
-    :root { --sidebar-width:360px; --bg:#0f172a; --panel:#111827; --muted:#9ca3af; --accent:#22c55e; --border:#1f2937; }
-    html,body{height:100%;margin:0}
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,"Helvetica Neue",Arial,"Apple Color Emoji","Segoe UI Emoji";background:var(--bg);color:#e5e7eb}
-    #app{display:grid;grid-template-columns:var(--sidebar-width) 1fr;height:100%}
-    #map{width:100%;height:100%}
-    .sidebar{background:var(--panel);border-right:1px solid var(--border);padding:12px 14px;overflow:auto}
-    .brand{display:flex;align-items:center;gap:10px;font-weight:600;margin-bottom:8px}.brand .dot{width:10px;height:10px;border-radius:9999px;background:var(--accent);box-shadow:0 0 16px var(--accent)}
-    .hint{color:var(--muted);font-size:12px;line-height:1.4;margin:8px 0 14px}
-    .group{border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:12px;background:#0b1220}
-    .group h3{margin:0 0 8px;font-size:14px;color:#f3f4f6}
-    .row{display:flex;align-items:center;gap:10px;margin:6px 0}
-    .row input[type="text"]{flex:1;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#0a0f1c;color:#e5e7eb}
-    .btn{appearance:none;border:1px solid var(--border);background:#101827;color:#e5e7eb;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:500}
-    .kpi{display:flex;gap:8px;flex-wrap:wrap}.kpi .badge{background:#0a0f1c;border:1px solid var(--border);padding:4px 8px;border-radius:999px;font-size:12px;color:var(--muted)}
-    .error{color:#fecaca;background:#2a0b0b;border:1px solid #7f1d1d;padding:8px;border-radius:8px;font-size:12px;display:none}
-    .footer{color:var(--muted);font-size:11px;margin-top:6px}
-    .color{width:28px;height:28px;padding:0;border-radius:8px;border:1px solid var(--border);background:transparent}
-    .small{font-size:12px;color:var(--muted)}
+    :root {
+      --sidebar-width: 360px;
+      --bg: #0f172a;          /* slate-900 */
+      --panel: #111827;       /* gray-900 */
+      --muted: #9ca3af;       /* gray-400 */
+      --accent: #22c55e;      /* green-500 */
+      --border: #1f2937;      /* gray-800 */
+    }
+    html, body { height: 100%; margin: 0; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: var(--bg); color: #e5e7eb; }
+    #app { display: grid; grid-template-columns: var(--sidebar-width) 1fr; height: 100%; }
+    #map { width: 100%; height: 100%; }
+    .sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 12px 14px; overflow: auto; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:600; margin-bottom: 8px; }
+    .brand .dot { width:10px; height:10px; border-radius: 9999px; background: var(--accent); box-shadow: 0 0 16px var(--accent); }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 8px 0 14px; }
+    .group { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 12px; background: #0b1220; }
+    .group h3 { margin: 0 0 8px; font-size: 14px; color:#f3f4f6; letter-spacing: .2px; }
+    .row { display:flex; align-items:center; gap: 10px; margin: 6px 0; }
+    .row label { font-size: 13px; }
+    .row input[type="text"] { flex: 1; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: #0a0f1c; color: #e5e7eb; }
+    .row input[type="range"] { width: 100%; }
+    .btn { appearance: none; border: 1px solid var(--border); background: #101827; color: #e5e7eb; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    .btn:hover { border-color: #374151; }
+    .kpi { display:flex; gap:8px; flex-wrap: wrap; }
+    .kpi .badge { background:#0a0f1c; border:1px solid var(--border); padding:4px 8px; border-radius: 999px; font-size: 12px; color: var(--muted); }
+    .error { color: #fecaca; background:#2a0b0b; border:1px solid #7f1d1d; padding:8px; border-radius:8px; font-size: 12px; display:none; }
+    .ok { color: #bbf7d0; }
+    .footer { color: var(--muted); font-size: 11px; margin-top: 6px; }
+    .color { width: 28px; height: 28px; padding:0; border-radius: 8px; border: 1px solid var(--border); background: transparent; }
+    .flex-1 { flex:1; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .small { font-size:12px; color: var(--muted); }
   </style>
 </head>
 <body>
   <div id="app">
     <aside class="sidebar">
-      <div class="brand"><span class="dot"></span><span>PC4 Postcodes (Leaflet)</span></div>
-      <div class="hint">Autoload via URL:<br>
+      <div class="brand"><span class="dot"></span> <span>PC4 Postcodes (Leaflet)</span></div>
+      <div class="hint">Autoload via URL, bijv.:<br>
         <code>?source=arcgis&url=https://services.arcgis.com/.../FeatureServer/0</code><br>
         <code>?source=wfs&url=https://example.com/geoserver/wfs&typenames=namespace:layer</code><br>
-        <code>?source=github&url=https://api.github.com/repos/OWNER/REPO/contents/file.geojson?ref=main</code>
+        <code>?source=github&url=https://api.github.com/repos/OWNER/REPO/contents/path/to/file.geojson?ref=main</code>
       </div>
 
-      <div class="kpi">
+      <div id="status" class="kpi">
         <div class="badge" id="badge-source">bron: —</div>
         <div class="badge" id="badge-features">features: 0</div>
       </div>
@@ -45,10 +61,10 @@
 
       <div class="group">
         <h3>Weergave</h3>
-        <div class="row"><label class="small"><input type="checkbox" id="toggle-borders" checked> Borders aan</label></div>
+        <div class="row"><label class="flex-1"><input type="checkbox" id="toggle-borders" checked> Borders aan</label></div>
         <div class="row">
           <label class="small" style="width:90px">Opacity</label>
-          <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.5" style="flex:1"/>
+          <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.5" class="flex-1"/>
           <span id="opacity-val" class="small">0.50</span>
         </div>
       </div>
@@ -66,14 +82,15 @@
         <div id="muni-controls"></div>
       </div>
 
-      <div class="footer">Startpositie via URL (lat, lon, zoom), anders 51.6938, 5.0844 (zoom 12). Popups tonen PC4 + gemeentenaam. Kleuren & zichtbaarheid zijn live aanpasbaar.</div>
+      <div class="footer">Startpositie: via URL-params (lat, lon, zoom) of standaard 51.6938, 5.0844 (zoom 12). Popups tonen PC4 + gemeentenaam. Kleuren & zichtbaarheid zijn live aanpasbaar.</div>
     </aside>
     <div id="map"></div>
   </div>
 
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
-    // Gemeenten & PC4-reeksen
+    // --- Config: gemeenten & PC4-reeksen ---
     const MUNICIPALITIES = {
       'Altena': [[4250,4255],[4260,4269],[4270,4273],[4280,4288]],
       'Waalwijk': [[5141,5149]],
@@ -81,7 +98,19 @@
       'Loon op Zand': [[5170,5176]],
       'Dongen': [[5100,5109]]
     };
-    const DEFAULT_COLORS = { 'Altena':'#22c55e','Waalwijk':'#60a5fa','Heusden':'#f59e0b','Loon op Zand':'#ef4444','Dongen':'#a78bfa' };
+
+    // Default kleuren per gemeente
+    const DEFAULT_COLORS = {
+      'Altena': '#22c55e',
+      'Waalwijk': '#60a5fa',
+      'Heusden': '#f59e0b',
+      'Loon op Zand': '#ef4444',
+      'Dongen': '#a78bfa'
+    };
+
+    // Opslag
+    const layersByMunicipality = {};        // { name: L.GeoJSON }
+    const featureIndexByPC4 = {};           // { pc4: [L.Layer, ...] }
 
     // UI refs
     const errBox = document.getElementById('err');
@@ -91,31 +120,28 @@
     const opacityVal = document.getElementById('opacity-val');
     const bordersToggle = document.getElementById('toggle-borders');
 
-    // Helpers
-    function idForMunicipality(name){ return name.toLowerCase().replace(/\s+/g,'-'); }
-    function cssEscape(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, m => '\\' + m); }
-
-    // Map init (allecijfers-style params)
+    // --- Kaart init ---
+    // Lees lat/lon/zoom uit URL (compatibel met allecijfers)
     const params = new URLSearchParams(location.search);
-    const startLat = Number.isFinite(parseFloat(params.get('lat'))) ? parseFloat(params.get('lat')) : 51.6938;
-    const startLon = Number.isFinite(parseFloat(params.get('lon'))) ? parseFloat(params.get('lon')) : 5.0844;
-    const startZoom = Number.isInteger(parseInt(params.get('zoom'),10)) ? parseInt(params.get('zoom'),10) : 12;
-    const paramPC4 = (params.get('pc4') || '').match(/\d{4}/)?.[0] || null;
+    const pLat = parseFloat(params.get('lat'));
+    const pLon = parseFloat(params.get('lon'));
+    const pZoom = parseInt(params.get('zoom'), 10);
+
+    const startLat = isFinite(pLat) ? pLat : 51.6938;
+    const startLon = isFinite(pLon) ? pLon : 5.0844;
+    const startZoom = Number.isInteger(pZoom) ? pZoom : 12;
 
     const map = L.map('map').setView([startLat, startLon], startZoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19,attribution:'&copy; OpenStreetMap-bijdragers'}).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap-bijdragers'
+    }).addTo(map);
 
-    // Lagen per gemeente
-    const layersByMunicipality = {};
-    const featureIndexByPC4 = {};
+    // Maak lege lagen per gemeente
     const makeStyle = (name) => ({
-      color: bordersToggle.checked ? '#1f2937' : 'transparent',
+      color: bordersToggle.checked ? '#1f2937' : 'transparent',   // stroke color
       weight: bordersToggle.checked ? 1 : 0,
-      fillColor: (() => {
-        const id = idForMunicipality(name);
-        const picker = document.querySelector(`[data-color-for="${cssEscape(id)}"]`);
-        return (picker?.value) || DEFAULT_COLORS[name] || '#22c55e';
-      })(),
+      fillColor: (() => { const id = name.toLowerCase().replace(/\s+/g,'-'); const el = document.querySelector(`[data-color-for="${cssEscape(id)}"]`); return (el?.value) || DEFAULT_COLORS[name] || '#22c55e'; })(),
       fillOpacity: parseFloat(opacitySlider.value)
     });
 
@@ -126,34 +152,52 @@
           const pc4 = extractPC4(feature.properties);
           const title = pc4 ? `PC4 ${pc4}` : 'PC4 onbekend';
           layer.bindPopup(`${title} – ${muni}`);
-          if (pc4) (featureIndexByPC4[pc4] ||= []).push(layer);
+          if (pc4) {
+            if (!featureIndexByPC4[pc4]) featureIndexByPC4[pc4] = [];
+            featureIndexByPC4[pc4].push(layer);
+          }
         }
       }).addTo(map);
     }
 
-    // Sidebar controls
+    // --- Sidebar: dynamisch besturingselementen renderen ---
     const controlsHost = document.getElementById('muni-controls');
     for (const muni of Object.keys(MUNICIPALITIES)) {
-      const id = idForMunicipality(muni);
+      const id = muni.toLowerCase().replace(/\s+/g,'-');
       const color = DEFAULT_COLORS[muni] || '#22c55e';
       const block = document.createElement('div');
       block.className = 'row';
       block.innerHTML = `
-        <label class="small" style="flex:1"><input type="checkbox" checked data-toggle-for="${id}" /> ${muni}</label>
+        <label class="flex-1"><input type="checkbox" checked data-toggle-for="${id}" /> ${muni}</label>
         <input class="color" type="color" value="${color}" data-color-for="${id}" title="Kleur voor ${muni}" />
       `;
       controlsHost.appendChild(block);
-      block.querySelector(\`[data-toggle-for="${id}"]\`).addEventListener('change', (e) => {
+
+      block.querySelector(`[data-toggle-for="${id}"]`).addEventListener('change', (e) => {
+        const checked = e.target.checked;
         const layer = layersByMunicipality[muni];
-        if (e.target.checked) layer.addTo(map); else map.removeLayer(layer);
+        if (!layer) return;
+        if (checked) { layer.addTo(map); } else { map.removeLayer(layer); }
       });
-      block.querySelector(\`[data-color-for="${id}"]\`).addEventListener('input', () => {
+
+      block.querySelector(`[data-color-for="${id}"]`).addEventListener('input', () => {
+        // update stijl voor deze laag
         layersByMunicipality[muni].setStyle(() => makeStyle(muni));
       });
     }
+
+    // Borders toggle & opacity
     bordersToggle.addEventListener('change', applyGlobalStyles);
-    opacitySlider.addEventListener('input', () => { opacityVal.textContent = Number(opacitySlider.value).toFixed(2); applyGlobalStyles(); });
-    function applyGlobalStyles(){ for (const m of Object.keys(layersByMunicipality)) layersByMunicipality[m].setStyle(() => makeStyle(m)); }
+    opacitySlider.addEventListener('input', () => {
+      opacityVal.textContent = Number(opacitySlider.value).toFixed(2);
+      applyGlobalStyles();
+    });
+
+    function applyGlobalStyles() {
+      for (const muni of Object.keys(layersByMunicipality)) {
+        layersByMunicipality[muni].setStyle(() => makeStyle(muni));
+      }
+    }
 
     // Zoom naar PC4
     document.getElementById('pc4-btn').addEventListener('click', () => {
@@ -162,37 +206,67 @@
       if (!pc4) return alert('Voer 4 cijfers in (PC4).');
       zoomToPC4(pc4);
     });
-    function zoomToPC4(pc4){
+
+    function zoomToPC4(pc4) {
       const layers = featureIndexByPC4[pc4];
-      if (!layers || layers.length===0) { alert(`Geen features voor PC4 ${pc4}.`); return; }
-      let bounds=null; layers.forEach(l=>{const b=l.getBounds?.(); if(b) bounds = bounds? bounds.extend(b): b;});
-      if (bounds) map.fitBounds(bounds.pad(0.15));
+      if (!layers || layers.length === 0) {
+        alert(`Geen features gevonden voor PC4 ${pc4}.`);
+        return;
+      }
+      let bounds = null;
+      layers.forEach(l => {
+        const b = l.getBounds?.();
+        if (b) bounds = bounds ? bounds.extend(b) : b;
+      });
+      if (bounds) {
+        const hasExplicitZoom = Number.isInteger(parseInt(new URLSearchParams(location.search).get('zoom'),10));
+        if (!hasExplicitZoom) map.fitBounds(bounds.pad(0.15));
+      }
     }
 
-    // PC4-detectie
+    // --- PC4 detectie ---
     const PC4_KEYS = ['pc4','PC4','pc_4','postcode4','Postcode4','POSTCODE4','postcode','code','PC4_CODE','PC4CODE','pc4code'];
-    function extractPC4(props){
-      if(!props) return null;
-      for (const k of PC4_KEYS){
-        if (k in props){ const m = String(props[k]).match(/(\d{4})/); if (m) return m[1]; }
-      }
-      return null;
-    }
-    function municipalityFromPC4(pc4){
-      const n = Number(pc4);
-      for (const [muni,ranges] of Object.entries(MUNICIPALITIES)){
-        for (const [a,b] of ranges){ if (n>=a && n<=b) return muni; }
+    function extractPC4(props) {
+      if (!props) return null;
+      for (const k of PC4_KEYS) {
+        if (k in props) {
+          const val = props[k];
+          if (val == null) continue;
+          const str = String(val);
+          const m = str.match(/(\d{4})/);
+          if (m) return m[1];
+        }
       }
       return null;
     }
 
-    // Autoload bron
-    const source = params.get('source'); const url = params.get('url'); const typenames = params.get('typenames');
-    if (source && url){
+    // Bepaal gemeente o.b.v. PC4
+    function municipalityFromPC4(pc4) {
+      const n = Number(pc4);
+      for (const [muni, ranges] of Object.entries(MUNICIPALITIES)) {
+        for (const [a,b] of ranges) {
+          if (n >= a && n <= b) return muni;
+        }
+      }
+      return null;
+    }
+
+    // --- Data laden op basis van URL-parameters ---
+    // params reeds gedefinieerd boven
+    const source = params.get('source');
+    const url = params.get('url');
+    const typenames = params.get('typenames'); // voor WFS
+
+    // Als er een expliciete PC4 is meegegeven, na laden hierop zoomen
+    const paramPC4 = (params.get('pc4') || '').match(/\d{4}/)?.[0] || null;
+
+    if (source && url) {
       badgeSource.textContent = `bron: ${source}`;
-      autoload(source,url,typenames).then(()=>{ if(paramPC4) zoomToPC4(paramPC4); }).catch(showError);
+      autoload(source, url, typenames)
+        .then(() => { if (paramPC4) zoomToPC4(paramPC4); })
+        .catch(showError);
     } else {
-      // PDOK-fallback met autodetectie + BBOX-clip
+      // PDOK-fallback met autodetectie van typeNames + BBOX-clip
       (async () => {
         try {
           badgeSource.textContent = 'bron: PDOK WFS (auto)';
@@ -205,54 +279,76 @@
       })();
     }
 
-    async function autoload(source, baseUrl, typenames){
-      try{
-        if (source==='arcgis'){
-          const fc = await fetchGeoJSON(buildArcGisQueryUrl(baseUrl));
-          await ingestGeoJSON(fc);
-        } else if (source==='wfs'){
+    async function autoload(source, baseUrl, typenames) {
+      try {
+        let fetchUrl = '';
+        if (source === 'arcgis') {
+          fetchUrl = buildArcGisQueryUrl(baseUrl);
+        } else if (source === 'wfs') {
           if (!typenames) throw new Error('WFS vereist parameter "typenames".');
-          const fc = await fetchGeoJSON(buildWFSUrl(baseUrl, typenames));
-          await ingestGeoJSON(fc);
-        } else if (source==='github'){
+          fetchUrl = buildWFSUrl(baseUrl, typenames);
+        } else if (source === 'github') {
+          // Verwacht een GitHub Contents API URL
           const data = await fetchGithubGeoJSON(baseUrl);
           await ingestGeoJSON(data);
-        } else { throw new Error(`Onbekende source: ${source}`); }
-      } catch(e){ showError(e); }
+          return;
+        } else {
+          throw new Error(`Onbekende source: ${source}`);
+        }
+
+        const fc = await fetchGeoJSON(fetchUrl);
+        await ingestGeoJSON(fc);
+      } catch (e) {
+        showError(e);
+      }
     }
 
-    // Helpers voor bronnen
-    function buildArcGisQueryUrl(layerUrl){
+    function buildArcGisQueryUrl(layerUrl) {
+      // Zorg dat we /query met de juiste parameters gebruiken
       const hasQuery = /\/query(\?|$)/.test(layerUrl);
       const base = hasQuery ? layerUrl.replace(/\/query.*$/, '/query') : (layerUrl.replace(/\/$/, '') + '/query');
+      const url = new URL(base);
+      url.searchParams.set('where', '1=1');
+      url.searchParams.set('outFields', '*');
+      url.searchParams.set('outSR', '4326');
+      url.searchParams.set('f', 'geojson');
+      return url.toString();
+    }
+
+    function buildWFSUrl(base, typeNames) {
+      return buildWFSUrlWithExtras(base, typeNames, {});
+    }
+    function buildWFSUrlWithExtras(base, typeNames, extras = {}) {
       const u = new URL(base);
-      u.searchParams.set('where','1=1'); u.searchParams.set('outFields','*'); u.searchParams.set('outSR','4326'); u.searchParams.set('f','geojson');
+      u.searchParams.set('service', 'WFS');
+      u.searchParams.set('version', '2.0.0');
+      u.searchParams.set('request', 'GetFeature');
+      u.searchParams.set('typenames', typeNames);
+      u.searchParams.set('outputFormat', 'application/json');
+      u.searchParams.set('srsName', 'EPSG:4326');
+      if (extras.count) u.searchParams.set('count', String(extras.count));
+      if (extras.bbox) u.searchParams.set('bbox', extras.bbox); // minX,minY,maxX,maxY (4326)
       return u.toString();
     }
 
-    // WFS helpers + PDOK fallback
-    function buildWFSUrl(base, typeNames){ return buildWFSUrlWithExtras(base,typeNames,{}); }
-    function buildWFSUrlWithExtras(base, typeNames, extras={}){
-      const u = new URL(base);
-      u.searchParams.set('service','WFS'); u.searchParams.set('version','2.0.0'); u.searchParams.set('request','GetFeature');
-      u.searchParams.set('typenames',typeNames); u.searchParams.set('outputFormat','application/json'); u.searchParams.set('srsName','EPSG:4326');
-      if (extras.count) u.searchParams.set('count', String(extras.count));
-      if (extras.bbox)  u.searchParams.set('bbox', extras.bbox); // minX,minY,maxX,maxY
-      return u.toString();
-    }
-    async function loadPdokPostcode4Fallback(){
+    async function loadPdokPostcode4Fallback() {
       const bases = [
         'https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0',
         'https://service.pdok.nl/cbs/postcode4/2023/wfs/v1_0'
       ];
-      const typeCandidates = ['postcode4','cbs:postcode4','postcode4_2024','cbs:postcode4_2024','postcode4_2023','cbs:postcode4_2023'];
-      const b = map.getBounds(); const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
-      for (const base of bases){
-        for (const tn of typeCandidates){
-          try{
-            const test = await fetchGeoJSON(buildWFSUrlWithExtras(base, tn, {count:1, bbox}));
-            if (!test || !Array.isArray(test.features)) continue;
-            const fc = await fetchGeoJSON(buildWFSUrlWithExtras(base, tn, {bbox}));
+      const typeCandidates = [
+        'postcode4','cbs:postcode4','postcode4_2024','cbs:postcode4_2024','postcode4_2023','cbs:postcode4_2023'
+      ];
+      const b = map.getBounds();
+      const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+      for (const base of bases) {
+        for (const tn of typeCandidates) {
+          try {
+            const testUrl = buildWFSUrlWithExtras(base, tn, { count: 1, bbox });
+            const testFc = await fetchGeoJSON(testUrl);
+            if (!testFc || !Array.isArray(testFc.features)) continue;
+            const url = buildWFSUrlWithExtras(base, tn, { bbox });
+            const fc = await fetchGeoJSON(url);
             await ingestGeoJSON(fc);
             console.log(`[PDOK Fallback] Gelukt met ${base} typeNames=${tn}`);
             return;
@@ -262,50 +358,87 @@
       throw new Error('Geen geldige WFS typeNames gevonden op PDOK Postcode4.');
     }
 
-    async function fetchGithubGeoJSON(apiUrl){
-      const res = await fetch(apiUrl, { headers:{'Accept':'application/vnd.github+json'} });
-      if (!res.ok) throw new Error(`GitHub API fout: ${res.status} ${res.statusText}`);
-      const json = await res.json();
-      const text = atob(json.content.replace(/\n/g,''));
-      return JSON.parse(text);
+    async function fetchGithubGeoJSON(apiUrl) {
+      // Verwacht GitHub REST: https://api.github.com/repos/:owner/:repo/contents/:path?ref=branch
+      try {
+        const res = await fetch(apiUrl, { headers: { 'Accept': 'application/vnd.github+json' } });
+        if (!res.ok) throw new Error(`GitHub API fout: ${res.status} ${res.statusText}`);
+        const json = await res.json();
+        if (!json.content) throw new Error('Ongeldig GitHub API antwoord (geen content).');
+        const text = atob(json.content.replace(/\n/g, ''));
+        const data = JSON.parse(text);
+        return data;
+      } catch (e) {
+        throw new Error(`GitHub laden mislukt: ${e.message}`);
+      }
     }
 
-    async function fetchGeoJSON(url){
-      try{
-        const res = await fetch(url, { mode:'cors' });
+    async function fetchGeoJSON(u) {
+      try {
+        const res = await fetch(u, { mode: 'cors' });
         if (!res.ok) throw new Error(`HTTP ${res.status} bij ophalen van GeoJSON.`);
-        const txt = await res.text(); let data;
-        try{ data = JSON.parse(txt); } catch{ throw new Error('Antwoord kon niet als JSON worden geparseerd.'); }
+        // Sommige WFS-implementaties leveren GeoJSON met content-type text/plain
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (_) {
+          throw new Error('Antwoord kon niet als JSON worden geparseerd.');
+        }
         if (!data || (!data.type && !data.features)) throw new Error('Antwoord is geen geldige GeoJSON FeatureCollection.');
         return data;
-      } catch(e){
-        if (e.name === 'TypeError') throw new Error('Netwerk/CORS fout bij ophalen van data.');
+      } catch (e) {
+        if (e.name === 'TypeError') {
+          // vaak CORS
+          throw new Error('Netwerk/CORS fout bij ophalen van data. Controleer CORS-instellingen of gebruik een CORS-vriendelijke endpoint.');
+        }
         throw e;
       }
     }
 
-    async function ingestGeoJSON(fc){
-      for (const m of Object.keys(layersByMunicipality)) layersByMunicipality[m].clearLayers();
+    async function ingestGeoJSON(fc) {
+      // Leeg bestaande lagen & index
+      for (const muni of Object.keys(layersByMunicipality)) {
+        layersByMunicipality[muni].clearLayers();
+      }
       for (const k of Object.keys(featureIndexByPC4)) delete featureIndexByPC4[k];
 
-      let total=0;
-      for (const f of (fc.features||[])){
-        const pc4 = extractPC4(f.properties); if (!pc4) continue;
-        const muni = municipalityFromPC4(pc4); if (!muni) continue;
-        layersByMunicipality[muni].addData(f); total++;
+      let total = 0;
+      const feats = fc.features || [];
+      for (const f of feats) {
+        const pc4 = extractPC4(f.properties);
+        if (!pc4) continue;
+        const muni = municipalityFromPC4(pc4);
+        if (!muni) continue; // negeer features buiten de gedefinieerde gemeenten
+        layersByMunicipality[muni].addData(f);
+        total++;
       }
-      badgeFeatures.textContent = `features: ${total}`;
-      console.log('[PC4] geladen features:', total);
 
-      let bounds=null;
-      for (const m of Object.keys(layersByMunicipality)){
-        const b = layersByMunicipality[m].getBounds?.();
-        if (b && b.isValid()) bounds = bounds? bounds.extend(b): b;
+      // Status & logs
+      badgeFeatures.textContent = `features: ${total}`;
+      console.log(`[PC4 Loader] Ingeladen features: ${total}`);
+
+      // Fit naar alle zichtbare lagen indien iets geladen is
+      let bounds = null;
+      for (const muni of Object.keys(layersByMunicipality)) {
+        const layer = layersByMunicipality[muni];
+        if (!map.hasLayer(layer)) continue;
+        const b = layer.getBounds?.();
+        if (b && b.isValid()) bounds = bounds ? bounds.extend(b) : b;
       }
       if (bounds) map.fitBounds(bounds.pad(0.15));
     }
 
-    function showError(err){ console.error(err); errBox.textContent = `Fout: ${err.message || err}`; errBox.style.display='block'; }
+    function showError(err) {
+      console.error(err);
+      errBox.textContent = `Fout: ${err.message || err}`;
+      errBox.style.display = 'block';
+    }
+
+    // CSS escape helper voor querySelector attributen
+    function cssEscape(s) {
+      return String(s).replace(/[^a-zA-Z0-9_-]/g, m => `\\${m}`);
+    }
   </script>
 </body>
 </html>
