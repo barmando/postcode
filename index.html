@@ -26,51 +26,17 @@
 
     <div class="block">
       <fieldset>
-        <legend>Data laden (extern, geen upload nodig)</legend>
+        <legend>Data laden</legend>
         <div class="layer-row" style="align-items: stretch;">
-          <select id="sourceType" style="padding:6px 8px;border-radius:8px;border:1px solid #ddd">
-            <option value="arcgis">ArcGIS FeatureServer</option>
-            <option value="wfs">WFS (OGC)</option>
-            <option value="github">GitHub API (public repo)</option>
-            <option value="raw">Rechtstreekse GeoJSON URL</option>
-          </select>
+          <input id="geoUrl" placeholder="https://.../pc4.geojson" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
+          <button id="loadUrlBtn">Laden via URL</button>
         </div>
-        <div id="src_arcgis">
-          <div class="layer-row" style="align-items: stretch;">
-            <input id="arcgisUrl" placeholder="https://<host>/.../FeatureServer/0 (laag-URL)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-            <button id="loadArcgisBtn">Laden via ArcGIS</button>
-          </div>
-          <p class="hint">We voegen automatisch <code>/query?where=1%3D1&outFields=*&outSR=4326&f=geojson</code> toe en laden alle features. Vaak staat CORS hier al goed.</p>
+        <div class="layer-row">
+          <input type="file" id="geoFile" accept=".geojson,.json" />
+          <span class="hint">of kies lokaal</span>
         </div>
-        <div id="src_wfs" style="display:none">
-          <div class="layer-row" style="align-items: stretch;">
-            <input id="wfsBase" placeholder="https://<host>/geoserver/<workspace>/wfs" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-          </div>
-          <div class="layer-row" style="align-items: stretch;">
-            <input id="wfsTypeName" placeholder="<workspace>:<laagnaam> (typenames)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-            <button id="loadWfsBtn">Laden via WFS</button>
-          </div>
-          <p class="hint">We gebruiken <code>GetFeature</code> met <code>outputFormat=application/json</code> en <code>srsName=EPSG:4326</code>.</p>
-        </div>
-        <div id="src_github" style="display:none">
-          <div class="layer-row" style="align-items: stretch;">
-            <input id="ghOwner" placeholder="owner (bijv. barmando)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-            <input id="ghRepo" placeholder="repo (bijv. postcode)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-          </div>
-          <div class="layer-row" style="align-items: stretch;">
-            <input id="ghPath" placeholder="pad in repo (bijv. pc4.geojson)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-            <input id="ghRef" placeholder="ref (bijv. main)" style="width:160px;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-            <button id="loadGhBtn">Laden via GitHub API</button>
-          </div>
-          <p class="hint">Werkt cross-origin. De API geeft Base64 terug; de app decodeert en leest het als GeoJSON.</p>
-        </div>
-        <div id="src_raw" style="display:none">
-          <div class="layer-row" style="align-items: stretch;">
-            <input id="geoUrl" placeholder="https://.../pc4.geojson (rechtstreekse GeoJSON)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid #ddd" />
-            <button id="loadUrlBtn">Laden via URL</button>
-          </div>
-          <p class="hint">De server moet <em>CORS</em> toestaan.</p>
-        </div>
+        <p class="hint">Let op: bij laden via URL moet de server <em>CORS</em> toestaan.</p>
+      </fieldset>
     </div>
 
     <div class="block">
@@ -326,7 +292,33 @@ document.getElementById('zoomBtn').addEventListener('click', () => {
   }
 });
 
-// GeoJSON laden (extern, geen upload nodig)
+// --- Externe bron automatisch laden zonder upload ---
+async function loadFromArcgis(baseUrl) {
+  const clean = baseUrl.split('?')[0].replace(/\/$/, '');
+  const url = `${clean}/query?where=1%3D1&outFields=*&outSR=4326&f=geojson`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const geo = await r.json();
+    await applyGeojson(geo);
+    console.info('GeoJSON geladen via ArcGIS FeatureServer');
+  } catch (err) {
+    console.error('ArcGIS load error:', err);
+    alert('Laden via ArcGIS mislukt (controleer service-URL/CORS).');
+  }
+}
+
+// Autoload via URL-parameters, bijv. ?source=arcgis&url=https://<host>/.../FeatureServer/0
+(function autoloadFromQuery(){
+  const sp = new URLSearchParams(location.search);
+  const src = sp.get('source');
+  const url = sp.get('url');
+  if (src === 'arcgis' && url) {
+    loadFromArcgis(url);
+  }
+})();
+
+// GeoJSON laden (lokaal of via URL)
 async function applyGeojson(geo) {
   allFeatures = geo && geo.type === 'FeatureCollection' ? geo.features : [];
   indexByPc4 = new Map();
@@ -336,58 +328,8 @@ async function applyGeojson(geo) {
     const lyr = L.geoJSON(f);
     indexByPc4.set(String(pc4), lyr);
   });
+  // Refresh zichtbare gemeenten
   Object.keys(MUNICIPALITIES).forEach(name => renderMunicipality(name));
-}
-
-async function loadFromArcgis(baseUrl) {
-  const clean = baseUrl.split('?')[0].replace(/\/$/, '');
-  const url = `${clean}/query?where=1%3D1&outFields=*&outSR=4326&f=geojson`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const geo = await r.json();
-    await applyGeojson(geo);
-    alert('GeoJSON geladen via ArcGIS FeatureServer.');
-  } catch (err) {
-    console.error('ArcGIS load error:', err);
-    alert('Laden via ArcGIS mislukt. Controleer de service-URL of CORS.');
-  }
-}
-
-async function loadFromWfs(base, typeName) {
-  const params = new URLSearchParams({
-    service: 'WFS', version: '2.0.0', request: 'GetFeature',
-    typename: typeName, // sommige servers gebruiken typenames, andere typename
-    typenames: typeName,
-    srsName: 'EPSG:4326', outputFormat: 'application/json'
-  });
-  const url = `${base}?${params.toString()}`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const geo = await r.json();
-    await applyGeojson(geo);
-    alert('GeoJSON geladen via WFS.');
-  } catch (err) {
-    console.error('WFS load error:', err);
-    alert('Laden via WFS mislukt. Controleer de URL/typenames of CORS.');
-  }
-}
-
-async function loadFromGitHub(owner, repo, path, ref='main') {
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const j = await r.json();
-    const text = atob(String(j.content || '').replace(/\n/g, ''));
-    const geo = JSON.parse(text);
-    await applyGeojson(geo);
-    alert('GeoJSON geladen via GitHub API.');
-  } catch (err) {
-    console.error('GitHub API load error:', err);
-    alert('Laden via GitHub API mislukt. Controleer owner/repo/path en dat het bestand publiek is.');
-  }
 }
 
 async function loadFromUrl(url) {
@@ -398,73 +340,41 @@ async function loadFromUrl(url) {
     await applyGeojson(geo);
     alert('GeoJSON geladen van URL.');
   } catch (err) {
-    console.error('URL load error:', err);
+    console.error('Kon GeoJSON niet laden via URL:', err);
     alert('Laden via URL mislukt. Controleer de URL en CORS-instellingen.');
   }
 }
 
+function loadFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const geo = JSON.parse(e.target.result);
+      await applyGeojson(geo);
+      alert('GeoJSON geladen vanaf bestand.');
+    } catch (err) {
+      console.error('Kon lokaal bestand niet lezen:', err);
+      alert('Bestand is geen geldige GeoJSON.');
+    }
+  };
+  reader.readAsText(file);
+}
+
 // UI events voor laden
-const sourceTypeSel = document.getElementById('sourceType');
-const arcgisDiv = document.getElementById('src_arcgis');
-const wfsDiv = document.getElementById('src_wfs');
-const ghDiv = document.getElementById('src_github');
-const rawDiv = document.getElementById('src_raw');
-
-sourceTypeSel.addEventListener('change', () => {
-  const v = sourceTypeSel.value;
-  arcgisDiv.style.display = v === 'arcgis' ? '' : 'none';
-  wfsDiv.style.display = v === 'wfs' ? '' : 'none';
-  ghDiv.style.display = v === 'github' ? '' : 'none';
-  rawDiv.style.display = v === 'raw' ? '' : 'none';
-});
-
-const loadArcgisBtn = document.getElementById('loadArcgisBtn');
-const arcgisUrl = document.getElementById('arcgisUrl');
-const loadWfsBtn = document.getElementById('loadWfsBtn');
-const wfsBase = document.getElementById('wfsBase');
-const wfsTypeName = document.getElementById('wfsTypeName');
-const loadGhBtn = document.getElementById('loadGhBtn');
-const ghOwner = document.getElementById('ghOwner');
-const ghRepo = document.getElementById('ghRepo');
-const ghPath = document.getElementById('ghPath');
-const ghRef = document.getElementById('ghRef');
 const loadUrlBtn = document.getElementById('loadUrlBtn');
 const geoUrl = document.getElementById('geoUrl');
+const geoFile = document.getElementById('geoFile');
 
-loadArcgisBtn?.addEventListener('click', () => {
-  const url = (arcgisUrl.value || '').trim();
-  if (!url) return alert('Voer eerst een ArcGIS FeatureServer-laag-URL in.');
-  loadFromArcgis(url);
-});
-
-loadWfsBtn?.addEventListener('click', () => {
-  const base = (wfsBase.value || '').trim();
-  const tn = (wfsTypeName.value || '').trim();
-  if (!base || !tn) return alert('Vul WFS base en typenames in.');
-  loadFromWfs(base, tn);
-});
-
-loadGhBtn?.addEventListener('click', () => {
-  const owner = (ghOwner.value || '').trim();
-  const repo = (ghRepo.value || '').trim();
-  const path = (ghPath.value || '').trim();
-  const ref = (ghRef.value || 'main').trim();
-  if (!owner || !repo || !path) return alert('Vul owner, repo en path in.');
-  loadFromGitHub(owner, repo, path, ref);
-});
-
-loadUrlBtn?.addEventListener('click', () => {
+loadUrlBtn.addEventListener('click', () => {
   const url = (geoUrl.value || '').trim();
   if (!url) return alert('Voer eerst een URL in.');
   loadFromUrl(url);
 });
 
-// Auto-load via URL parameters, bv. ?source=arcgis&url=<...>
-(function autoloadFromQuery(){
-  const sp = new URLSearchParams(location.search);
-  const src = sp.get('source');
-  const url = sp.get('url');
-  const owner = sp
+geoFile.addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) loadFromFile(f);
+});
 
 // Probeer standaard pc4.geojson uit dezelfde map te laden (optioneel)
 fetch('pc4.geojson')
