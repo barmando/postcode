@@ -47,8 +47,13 @@
       </div>
     </section>
 
+    <div style="padding: 0 16px 8px; display:flex; gap:8px; align-items:center">
+      <label><input type="checkbox" id="useProxy"> Gebruik proxy (alleen als CORS faalt)</label>
+      <input id="proxyBase" placeholder="https://cors.isomorphic-git.org/" style="flex:1; padding:6px 8px; border:1px solid #e5e7eb; border-radius:10px"/>
+    </div>
+
     <div id="map"></div>
-    <div class="footer">Let op: dit werkt alleen als de bronserver CORS toestaat (PDOK doet dat meestal). Anders heb je een proxy nodig, of gebruik uMap met de Proxy-optie.</div>
+    <div class="footer">Let op: dit werkt alleen als de bronserver CORS toestaat (PDOK meestal wel). Als je niets ziet: probeer de proxy-optie hieronder of open dit bestand lokaal in een eigen browservenster. Anders heb je een proxy nodig, of gebruik uMap met de Proxy-optie.</div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -77,16 +82,28 @@
     }
 
     async function addLayer({color, label, url}) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Kon niet laden: ' + url);
+      // Optional proxy
+      const useProxy = document.getElementById('useProxy').checked;
+      const proxyBase = document.getElementById('proxyBase').value || '';
+      const finalURL = useProxy && proxyBase ? proxyBase + encodeURIComponent(url) : url;
+
+      const res = await fetch(finalURL);
+      if (!res.ok) throw new Error('Kon niet laden: ' + finalURL + ' (' + res.status + ')');
       const geo = await res.json();
 
-      const style = {
-        color: color || '#111827', // stroke
-        weight: 1,
-        fillColor: color || '#111827',
-        fillOpacity: 0.5
-      };
+      const style = { color: color || '#111827', weight: 1, fillColor: color || '#111827', fillOpacity: 0.5 };
+
+      const gj = L.geoJSON(geo, {
+        style,
+        onEachFeature: (feature, layer) => {
+          const pc = feature?.properties?.pc4 ?? feature?.properties?.PC4 ?? '';
+          const name = label || 'Laag';
+          layer.bindPopup(`<b>${name}</b><br>PC4: ${pc}`);
+        }
+      }).addTo(map);
+
+      layers.push({layer: gj, color, label});
+    };
 
       const gj = L.geoJSON(geo, {
         style,
@@ -148,17 +165,20 @@
 
     // Defaults: 5 gemeenten met jouw URLs en kleuren
     const defaults = [
-      "#1f77b4|Altena|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&outputFormat=application/json&CQL_FILTER=pc4%20IN%20('4250','4251','4252','4253','4254','4255','4260','4261','4262','4263','4264','4265','4266','4267','4268','4269','4270','4271','4272','4273','4280','4281','4282','4283','4284','4285','4286','4287','4288')",
-      "#2ca02c|Waalwijk|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&outputFormat=application/json&CQL_FILTER=pc4%20IN%20('5141','5142','5143','5144','5145','5146','5147','5148','5149')",
-      "#ff7f0e|Heusden|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&outputFormat=application/json&CQL_FILTER=pc4%20IN%20('5150','5151','5152','5153','5154','5250','5251','5252','5253','5254','5255','5256')",
-      "#9467bd|Loon op Zand|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&outputFormat=application/json&CQL_FILTER=pc4%20IN%20('5170','5171','5172','5173','5174','5175','5176')",
-      "#d62728|Dongen|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&outputFormat=application/json&CQL_FILTER=pc4%20IN%20('5100','5101','5102','5103','5104','5105','5106','5107','5108','5109')"
+      "#1f77b4|Altena|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('4250','4251','4252','4253','4254','4255','4260','4261','4262','4263','4264','4265','4266','4267','4268','4269','4270','4271','4272','4273','4280','4281','4282','4283','4284','4285','4286','4287','4288')",
+      "#2ca02c|Waalwijk|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5141','5142','5143','5144','5145','5146','5147','5148','5149')",
+      "#ff7f0e|Heusden|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5150','5151','5152','5153','5154','5250','5251','5252','5253','5254','5255','5256')",
+      "#9467bd|Loon op Zand|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5170','5171','5172','5173','5174','5175','5176')",
+      "#d62728|Dongen|https://service.pdok.nl/cbs/postcode4/2024/wfs/v1_0?service=WFS&request=GetFeature&typeNames=cbs:postcode4&version=2.0.0&srsName=EPSG:4326&outputFormat=json&CQL_FILTER=pc4%20IN%20('5100','5101','5102','5103','5104','5105','5106','5107','5108','5109')"
     ].join("\n");
 
     document.getElementById('input').value = defaults;
     restoreFromHash();
 
-    document.getElementById('load').addEventListener('click', loadFromTextarea);
+    document.getElementById('load').addEventListener('click', async () => {
+      try { await loadFromTextarea(); }
+      catch (e) { alert(e.message); }
+    });
     document.getElementById('share').addEventListener('click', () => {
       const url = serializeToHash();
       alert('Deel deze link om dezelfde configuratie te openen:\n\n' + url);
