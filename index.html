@@ -178,7 +178,9 @@
 
     document.getElementById('load').addEventListener('click', async () => {
       try { await loadFromTextarea(); }
-      catch (e) { alert(e.message + '\n\nTip: vink "Gebruik proxy" aan/uit en probeer opnieuw. Je kunt de URL ook direct in een nieuw tabblad openen om te testen.'); }
+      catch (e) { alert(e.message + '
+
+Tip: vink "Gebruik proxy" aan/uit en probeer opnieuw. Je kunt de URL ook direct in een nieuw tabblad openen om te testen.'); }
     });
     document.getElementById('share').addEventListener('click', () => {
       const url = serializeToHash();
