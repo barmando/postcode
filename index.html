@@ -82,7 +82,7 @@
         <div id="muni-controls"></div>
       </div>
 
-      <div class="footer">Startpositie: 51.6938, 5.0844 (zoom 12). Popups tonen PC4 + gemeentenaam. Kleuren & zichtbaarheid zijn live aanpasbaar.</div>
+      <div class="footer">Startpositie: via URL-params (lat, lon, zoom) of standaard 51.6938, 5.0844 (zoom 12). Popups tonen PC4 + gemeentenaam. Kleuren & zichtbaarheid zijn live aanpasbaar.</div>
     </aside>
     <div id="map"></div>
   </div>
@@ -121,7 +121,17 @@
     const bordersToggle = document.getElementById('toggle-borders');
 
     // --- Kaart init ---
-    const map = L.map('map').setView([51.6938, 5.0844], 12);
+    // Lees lat/lon/zoom uit URL (compatibel met allecijfers)
+    const params = new URLSearchParams(location.search);
+    const pLat = parseFloat(params.get('lat'));
+    const pLon = parseFloat(params.get('lon'));
+    const pZoom = parseInt(params.get('zoom'), 10);
+
+    const startLat = isFinite(pLat) ? pLat : 51.6938;
+    const startLon = isFinite(pLon) ? pLon : 5.0844;
+    const startZoom = Number.isInteger(pZoom) ? pZoom : 12;
+
+    const map = L.map('map').setView([startLat, startLon], startZoom);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap-bijdragers'
@@ -208,7 +218,10 @@
         const b = l.getBounds?.();
         if (b) bounds = bounds ? bounds.extend(b) : b;
       });
-      if (bounds) map.fitBounds(bounds.pad(0.15));
+      if (bounds) {
+        const hasExplicitZoom = Number.isInteger(parseInt(new URLSearchParams(location.search).get('zoom'),10));
+        if (!hasExplicitZoom) map.fitBounds(bounds.pad(0.15));
+      }
     }
 
     // --- PC4 detectie ---
@@ -239,16 +252,41 @@
     }
 
     // --- Data laden op basis van URL-parameters ---
-    const params = new URLSearchParams(location.search);
+    // params reeds gedefinieerd boven
     const source = params.get('source');
     const url = params.get('url');
     const typenames = params.get('typenames'); // voor WFS
 
+    // Als er een expliciete PC4 is meegegeven, na laden hierop zoomen
+    const paramPC4 = (params.get('pc4') || '').match(/\d{4}/)?.[0] || null;
+
     if (source && url) {
       badgeSource.textContent = `bron: ${source}`;
-      autoload(source, url, typenames).catch(showError);
+      autoload(source, url, typenames)
+        .then(() => { if (paramPC4) zoomToPC4(paramPC4); })
+        .catch(showError);
     } else {
-      badgeSource.textContent = 'bron: (geen – gebruik URL-parameters)';
+      // Probeer een vriendelijke fallback zodat het 'zoals allecijfers' direct werkt
+      // LET OP: publieke endpoints kunnen wijzigen of CORS beperken.
+      // Pas dit aan naar jouw voorkeursbron als nodig.
+      const FALLBACKS = [
+        { kind: 'wfs', url: 'https://geodata.nationaalgeoregister.nl/cbsgebiedsindelingen/wfs', typenames: 'cbsgebiedsindelingen:postcode4_2023' },
+        { kind: 'wfs', url: 'https://geodata.nationaalgeoregister.nl/cbsgebiedsindelingen/wfs', typenames: 'cbsgebiedsindelingen:postcode4_2022' }
+      ];
+      (async () => {
+        for (const fb of FALLBACKS) {
+          try {
+            badgeSource.textContent = `bron: fallback ${fb.kind}`;
+            await autoload(fb.kind, fb.url, fb.typenames);
+            if (paramPC4) zoomToPC4(paramPC4);
+            return;
+          } catch (e) {
+            console.warn('Fallback mislukt:', e);
+          }
+        }
+        badgeSource.textContent = 'bron: (geen – gebruik ?source=arcgis|wfs|github & url=...)';
+        showError(new Error('Geen data geladen. Geef een bron via URL-parameters of controleer CORS van de fallback.'));
+      })();
     }
 
     async function autoload(source, baseUrl, typenames) {
@@ -293,6 +331,7 @@
       u.searchParams.set('version', '2.0.0');
       u.searchParams.set('request', 'GetFeature');
       u.searchParams.set('typenames', typeNames);
+      // Sommige servers accepteren zowel application/json als json
       u.searchParams.set('outputFormat', 'application/json');
       u.searchParams.set('srsName', 'EPSG:4326');
       return u.toString();
@@ -316,6 +355,25 @@
     async function fetchGeoJSON(u) {
       try {
         const res = await fetch(u, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status} bij ophalen van GeoJSON.`);
+        // Sommige WFS-implementaties leveren GeoJSON met content-type text/plain
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (_) {
+          throw new Error('Antwoord kon niet als JSON worden geparseerd.');
+        }
+        if (!data || (!data.type && !data.features)) throw new Error('Antwoord is geen geldige GeoJSON FeatureCollection.');
+        return data;
+      } catch (e) {
+        if (e.name === 'TypeError') {
+          // vaak CORS
+          throw new Error('Netwerk/CORS fout bij ophalen van data. Controleer CORS-instellingen of gebruik een CORS-vriendelijke endpoint.');
+        }
+        throw e;
+      }
+    });
         if (!res.ok) throw new Error(`HTTP ${res.status} bij ophalen van GeoJSON.`);
         const data = await res.json();
         if (!data || (!data.type && !data.features)) throw new Error('Antwoord is geen geldige GeoJSON FeatureCollection.');
