@@ -45,6 +45,8 @@
 
     <div id="meta" class="tip" aria-live="polite"></div>
 
+    <div id="sources" class="tip" style="margin-top:4px"></div>
+
     <div class="list" id="pc4List" aria-live="polite"></div>
   </div>
 
@@ -91,6 +93,10 @@
     document.addEventListener('DOMContentLoaded', ()=>{
       const metaEl = document.getElementById('meta');
       if(metaEl){ metaEl.textContent = `Datasetversie: ${DATASET_VERSION} · Opgehaald: ${FETCHED_ON}`; }
+      const srcEl = document.getElementById('sources');
+      if(srcEl){
+        srcEl.innerHTML = `Bronnen: <strong>Geometrie</strong> – CBS Postcode4 2024 (CC BY 4.0); <strong>Attribuutdata</strong> – PDOK/CBS Postcode4 ${PDOK_WFS_YEAR} (CC BY 4.0).`;
+      }
     });
 
     let geo = null;
