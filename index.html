@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Postcodekaart (PC4-2) – Selecteer gebieden en kleur</title>
+  <title>Postcodekaart (PC4) – Selecteer gebieden en kleur</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <style>
     html, body { height: 100%; margin: 0; }
@@ -21,7 +21,7 @@
 <body>
 <div id="app">
   <aside id="sidebar">
-    <h2 style="margin-top:0">Postcodekaart (PC4 v2)</h2>
+    <h2 style="margin-top:0">Postcodekaart (PC4)</h2>
     <p class="hint">Je kunt een <strong>pc4.geojson</strong> lokaal kiezen of via een <strong>URL</strong> laden. Het bestand moet per vlak een property met de PC4 bevatten, bv. <code>pc4</code>, <code>PC4</code>, <code>postcode4</code> of <code>postcode</code>.</p>
 
     <div class="block">
@@ -35,8 +35,9 @@
           <input type="file" id="geoFile" accept=".geojson,.json" />
           <span class="hint">of kies lokaal</span>
         </div>
-        <p class="hint">Let op: bij laden via URL moet de server <em>CORS</em> toestaan.</p>
-      </fieldset>
+        <hr style="border:none;border-top:1px solid #eee;width:100%"/>
+        <div class="layer-row" style="align-items: stretch;">
+          <input id="arcgisUrl" placeholder="https://<host>/.../FeatureServer
     </div>
 
     <div class="block">
