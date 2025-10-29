@@ -373,18 +373,6 @@
         }
         throw e;
       }
-    });
-        if (!res.ok) throw new Error(`HTTP ${res.status} bij ophalen van GeoJSON.`);
-        const data = await res.json();
-        if (!data || (!data.type && !data.features)) throw new Error('Antwoord is geen geldige GeoJSON FeatureCollection.');
-        return data;
-      } catch (e) {
-        if (e.name === 'TypeError') {
-          // vaak CORS
-          throw new Error('Netwerk/CORS fout bij ophalen van data. Controleer CORS-instellingen of gebruik een CORS-vriendelijke endpoint.');
-        }
-        throw e;
-      }
     }
 
     async function ingestGeoJSON(fc) {
