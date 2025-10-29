@@ -6,10 +6,10 @@
   <title>PC4 – Noord-Brabant (selecteer & kleur per postcode)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <style>
-    :root{ --border:#e5e7eb; --muted:#6b7280; --text:#111827; --shadow:0 6px 18px rgba(0,0,0,.08); }
+    :root{ --border:#e5e7eb; --muted:#6b7280; --shadow:0 6px 18px rgba(0,0,0,.08); }
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; }
-    .panel { position: absolute; z-index: 1000; left: 12px; top: 12px; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); width: 340px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .panel { position: absolute; z-index: 1000; left: 12px; top: 12px; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); width: 360px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .title h1 { font-size: 16px; margin: 0; }
     .subtitle { margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
@@ -17,13 +17,13 @@
     .row input[type="text"] { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
     .btn { padding: 8px 10px; border: 1px solid var(--border); background: #fff; border-radius: 10px; cursor: pointer; font-size: 14px; }
     .btn:hover{ background:#f9fafb; }
-    .list { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; max-height: 220px; overflow: auto; }
-    .item { display:grid; grid-template-columns: 68px 1fr auto auto; align-items:center; gap:8px; padding:6px 0; border-bottom: 1px dashed #eef; }
+    .list { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; max-height: 240px; overflow: auto; }
+    .item { display:grid; grid-template-columns: 72px 1fr auto auto; align-items:center; gap:8px; padding:6px 0; border-bottom: 1px dashed #eef; }
     .item:last-child{ border-bottom:none; }
-    .item .pc4 { font-weight:600; }
+    .item .pc4 { font-weight:600; cursor:pointer; }
     .item button { border: 1px solid var(--border); background:#fff; border-radius: 8px; padding:6px 8px; cursor:pointer; }
     .item button:hover{ background:#f8fafc; }
-    .tip { font-size:12px; color:var(--muted); margin-top:6px; }
+    .tip { font-size:12px; color:#6b7280; margin-top:6px; }
     .footer { position: absolute; right: 12px; bottom: 12px; z-index: 1000; background: rgba(255,255,255,0.95); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; font-size: 12px; color: #4b5563; box-shadow: var(--shadow); }
   </style>
 </head>
@@ -35,13 +35,13 @@
       <h1>Postcode 4 – Noord-Brabant</h1>
       <button id="btnClearAll" class="btn" title="Wis alle kleuren">Wissen</button>
     </div>
-    <div class="subtitle">Klik een vlak om te selecteren of voer PC4’s in. Per postcode kun je een eigen kleur kiezen.</div>
+    <div class="subtitle">Klik een vlak om toe te voegen of voer PC4’s in. Per postcode kies je een eigen kleur.</div>
 
     <div class="row">
       <input id="pc4Input" type="text" placeholder="Bijv: 5141, 5142, 5170-5173"/>
       <button id="btnAdd" class="btn">Toevoegen</button>
     </div>
-    <div class="tip">Tip: gebruik komma’s/spaties of ranges met een streepje. Klik in de lijst op een PC4 om erop in te zoomen.</div>
+    <div class="tip">Gebruik komma’s/spaties of ranges met een streepje. Klik in de lijst op een PC4 om in te zoomen.</div>
 
     <div class="list" id="pc4List" aria-live="polite"></div>
   </div>
@@ -50,26 +50,26 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
-    // 1) Basiskaart
+    // Kaart
     const map = L.map('map', { scrollWheelZoom: true });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
-    // 2) GeoJSON pad (zelfde directory)
+    // GeoJSON-bestand (zelfde map als deze pagina)
     const GEOJSON_URL = 'cbs_postcode4_brabant.geojson';
 
-    // 3) Selectie + index
-    const selected = new Map(); // pc4 -> color (hex)
-    const index = new Map();    // pc4 -> Leaflet layer
+    // Selecties & index
+    const selected = new Map(); // pc4 -> color
+    const index    = new Map(); // pc4 -> Leaflet layer
 
     function getPc4(props){
       const v = props.pc4 ?? props.PC4 ?? props.postcode4 ?? props.Postcode4 ?? props.postcode;
-      return v != null ? String(v).padStart(4,'0') : null;
+      return v != null ? String(v).padStart(4, '0') : null;
     }
 
     function baseStyle(){ return { color: '#1f2937', weight: 0.8, fillColor: '#93c5fd', fillOpacity: 0.06 }; }
     function styleFor(feature){
       const pc4 = getPc4(feature.properties);
-      if(pc4 && selected.has(pc4)){
+      if (pc4 && selected.has(pc4)) {
         const color = selected.get(pc4);
         return { color, weight: 1.5, fillColor: color, fillOpacity: 0.35 };
       }
@@ -78,80 +78,82 @@
 
     let geo = null;
     function refreshStyles(){ if(!geo) return; geo.eachLayer(l => l.setStyle(styleFor(l.feature))); }
+    function zoomTo(pc4){ const lyr = index.get(pc4); if(!lyr) return; map.fitBounds(lyr.getBounds().pad(0.05)); lyr.openPopup(); }
 
-    function zoomTo(pc4){
-      const lyr = index.get(pc4); if(!lyr) return;
-      map.fitBounds(lyr.getBounds().pad(0.05));
-      lyr.openPopup();
-    }
+    // UI helpers
+    const listEl   = document.getElementById('pc4List');
+    const inputEl  = document.getElementById('pc4Input');
+    const addBtn   = document.getElementById('btnAdd');
+    const clearBtn = document.getElementById('btnClearAll');
 
-    // 4) UI helpers
-    const listEl = document.getElementById('pc4List');
     function makeItem(pc4, color){
       const row = document.createElement('div');
       row.className = 'item';
       row.innerHTML = `
-        <div class="pc4" data-pc4="${pc4}" title="Klik om in te zoomen" style="cursor:pointer;">${pc4}</div>
+        <div class="pc4" title="Klik om te zoomen">${pc4}</div>
         <input type="color" value="${color}" aria-label="Kleur voor ${pc4}" />
-        <button class="btn btn-zoom" title="Zoom naar ${pc4}">Zoom</button>
-        <button class="btn btn-del" title="Verwijder ${pc4}">Verwijder</button>
+        <button class="btn btn-zoom">Zoom</button>
+        <button class="btn btn-del">Verwijder</button>
       `;
       const colorInput = row.querySelector('input[type="color"]');
-      const btnZoom = row.querySelector('.btn-zoom');
-      const btnDel = row.querySelector('.btn-del');
-      const pc4Label = row.querySelector('.pc4');
+      const btnZoom    = row.querySelector('.btn-zoom');
+      const btnDel     = row.querySelector('.btn-del');
+      const pc4Label   = row.querySelector('.pc4');
 
       const apply = () => { selected.set(pc4, colorInput.value); refreshStyles(); };
       colorInput.addEventListener('input', apply);
       btnZoom.addEventListener('click', () => zoomTo(pc4));
       pc4Label.addEventListener('click', () => zoomTo(pc4));
       btnDel.addEventListener('click', () => { selected.delete(pc4); refreshStyles(); row.remove(); });
-      return row;
-    }
 
-    function addPc4(pc4, color = randomColor()){
-      if(!index.has(pc4)) return; // onbekend in dataset
-      if(!selected.has(pc4)){
-        selected.set(pc4, color);
-        listEl.appendChild(makeItem(pc4, color));
-        refreshStyles();
-      }
+      return row;
     }
 
     function randomColor(){
       const palette = ['#2563eb','#16a34a','#e11d48','#9333ea','#f59e0b','#0ea5e9','#22c55e','#ef4444','#a855f7','#f97316'];
-      return palette[Math.floor(Math.random()*palette.length)];
+      return palette[Math.floor(Math.random() * palette.length)];
+    }
+
+    function addPc4(pc4, color = randomColor()){
+      if (!index.has(pc4)) return;       // PC4 niet in dataset
+      if (selected.has(pc4)) return;     // al aanwezig
+      selected.set(pc4, color);
+      listEl.appendChild(makeItem(pc4, color));
+      refreshStyles();
     }
 
     function parseInputToPc4s(text){
       const parts = text.split(/[,\\s]+/).filter(Boolean);
       const out = new Set();
-      for(const p of parts){
-        const norm = p.replace(/[–—−]/g,'-').trim();
-        if(/^\\d{4}-\\d{4}$/.test(norm)){
-          const [a,b] = norm.split('-').map(n=>parseInt(n,10));
+      for (const p of parts){
+        const norm = p.replace(/[–—−]/g, '-').trim();
+        if (/^\\d{4}-\\d{4}$/.test(norm)) {
+          const [a,b] = norm.split('-').map(n => parseInt(n, 10));
           const s = Math.min(a,b), e = Math.max(a,b);
-          for(let v=s; v<=e; v++){ out.add(String(v).padStart(4,'0')); }
-        } else if(/^\\d{4}$/.test(norm)) {
+          for (let v=s; v<=e; v++) out.add(String(v).padStart(4,'0'));
+        } else if (/^\\d{4}$/.test(norm)) {
           out.add(norm);
         }
       }
       return [...out];
     }
 
-    // 5) Laad GeoJSON en activeer click-selectie
+    // GeoJSON laden
     fetch(GEOJSON_URL)
-      .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
       .then(data => {
         geo = L.geoJSON(data, {
           style: styleFor,
           onEachFeature: (f, lyr) => {
             const code = getPc4(f.properties);
-            if(code) index.set(code, lyr);
+            if (code) index.set(code, lyr);
             lyr.on('click', () => {
-              if(selected.has(code)){
+              if (selected.has(code)) {
                 selected.delete(code);
-                listEl.querySelectorAll('.item .pc4').forEach(el=>{ if(el.textContent===code) el.parentElement.remove(); });
+                // verwijder item uit lijst
+                const items = Array.from(listEl.querySelectorAll('.item .pc4'));
+                const hit = items.find(el => el.textContent === code);
+                if (hit) hit.parentElement.remove();
               } else {
                 const c = randomColor();
                 selected.set(code, c);
@@ -166,14 +168,15 @@
       })
       .catch(err => { console.error('GeoJSON laden mislukt:', err); alert('Kon '+GEOJSON_URL+' niet laden.'); });
 
-    // 6) UI knoppen
-    document.getElementById('btnAdd').addEventListener('click', () => {
-      const raw = document.getElementById('pc4Input').value;
+    // Knoppen
+    addBtn.addEventListener('click', () => {
+      const raw = inputEl.value || '';
       const pc4s = parseInputToPc4s(raw);
       pc4s.forEach(code => addPc4(code));
-      if(pc4s.length===1) zoomTo(pc4s[0]);
+      if (pc4s.length === 1) zoomTo(pc4s[0]);
     });
-    document.getElementById('btnClearAll').addEventListener('click', () => {
+
+    clearBtn.addEventListener('click', () => {
       selected.clear(); refreshStyles(); listEl.innerHTML = '';
     });
   </script>
